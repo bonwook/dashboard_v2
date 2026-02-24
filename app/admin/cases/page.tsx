@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Progress } from "@/components/ui/progress"
 import { Activity, RefreshCw, Search, Paperclip, Trash2, Plus } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
@@ -27,6 +28,8 @@ export default function WorklistPage() {
   const [priorityFilter, setPriorityFilter] = useState<string>("all")
   const [bucketFilter, setBucketFilter] = useState<string>("all")
   const [me, setMe] = useState<{ id: string; role?: string } | null>(null)
+  const [uploadLoading, setUploadLoading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState(0)
   const router = useRouter()
   const searchParams = useSearchParams()
   const { toast } = useToast()
@@ -249,6 +252,11 @@ export default function WorklistPage() {
     [filteredCompleted]
   )
 
+  const s3UnassignedCount = useMemo(
+    () => filteredS3Updates.filter((s) => !s.task_id).length,
+    [filteredS3Updates]
+  )
+
   const handleDeleteTask = async (taskId: string, e: React.MouseEvent) => {
     e.stopPropagation() // 행 클릭 이벤트 방지
     
@@ -347,7 +355,18 @@ export default function WorklistPage() {
           <p className="text-muted-foreground">업로드와 모든 작업 목록을 한 곳에서 확인하고 관리하세요</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <UploadSection onSuccess={loadTasks} />
+          <UploadSection
+            onSuccess={loadTasks}
+            onUploadStart={() => {
+              setUploadLoading(true)
+              setUploadProgress(0)
+            }}
+            onProgress={setUploadProgress}
+            onUploadEnd={() => {
+              setUploadLoading(false)
+              setUploadProgress(0)
+            }}
+          />
           <Button asChild size="default" className="shrink-0">
             <Link href="/admin/analytics?from=worklist">
               <Plus className="mr-2 h-4 w-4" />
@@ -357,17 +376,23 @@ export default function WorklistPage() {
         </div>
       </div>
 
+      {uploadLoading && (
+        <div className="mb-4 rounded-lg border bg-muted/30 px-6 py-3 space-y-1.5">
+          <Progress value={uploadProgress} className="h-2" />
+          <p className="text-xs text-muted-foreground">업로드 중 {uploadProgress}%</p>
+        </div>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle>전체 작업</CardTitle>
           <CardDescription>
             진행 중 {worklistEntries.length}개
             {completedEntries.length > 0 && ` · 완료 ${completedEntries.length}개`}
-            {filteredS3Updates.filter((s) => !s.task_id).length > 0 &&
-              ` (S3 미할당 ${filteredS3Updates.filter((s) => !s.task_id).length}건)`}
+            {s3UnassignedCount > 0 && ` (S3 미할당 ${s3UnassignedCount}건)`}
           </CardDescription>
         </CardHeader>
-            <CardContent className="space-y-4">
+        <CardContent className="space-y-4">
               <div className="flex flex-wrap items-center gap-2">
                 <div className="relative min-w-[180px]">
                   <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -624,7 +649,7 @@ export default function WorklistPage() {
                       {completedEntries.length > 0 && (
                         <>
                           <TableRow className="bg-muted/30 hover:bg-muted/30">
-                            <TableCell colSpan={10} className="font-medium text-muted-foreground py-2">
+                            <TableCell colSpan={10} className="font-medium text-muted-foreground py-2 text-center">
                               — 완료된 작업 ({completedEntries.length}건) —
                             </TableCell>
                           </TableRow>
@@ -637,30 +662,30 @@ export default function WorklistPage() {
                                 className="cursor-pointer hover:bg-accent/50 opacity-90"
                                 onClick={() => router.push(`/admin/cases/${task.id}`)}
                               >
-                                <TableCell className="font-medium">{task.title}</TableCell>
+                                <TableCell className="font-medium text-center">{task.title}</TableCell>
                                 <TableCell className="text-center">
                                   <span className="text-muted-foreground">-</span>
                                 </TableCell>
-                                <TableCell>
+                                <TableCell className="text-center">
                                   <Badge variant={task.is_multi_assign ? "secondary" : "outline"} className="font-normal">
                                     {task.is_multi_assign ? "공동" : "개별"}
                                   </Badge>
                                 </TableCell>
-                                <TableCell>{task.assigned_by_name || task.assigned_by_email || "Unknown"}</TableCell>
-                                <TableCell>{task.assigned_to_name || task.assigned_to_email || "Unknown"}</TableCell>
-                                <TableCell>
+                                <TableCell className="text-center">{task.assigned_by_name || task.assigned_by_email || "Unknown"}</TableCell>
+                                <TableCell className="text-center">{task.assigned_to_name || task.assigned_to_email || "Unknown"}</TableCell>
+                                <TableCell className="text-center">
                                   {task.has_any_attachment ?? ((task.file_keys?.length ?? 0) + (task.comment_file_keys?.length ?? 0) > 0) ? (
-                                    <div className="inline-flex items-center px-2 text-muted-foreground" aria-label="첨부파일 있음">
+                                    <div className="inline-flex items-center justify-center px-2 text-muted-foreground" aria-label="첨부파일 있음">
                                       <Paperclip className="h-4 w-4" />
                                     </div>
                                   ) : (
                                     <span className="text-muted-foreground text-sm">&nbsp;</span>
                                   )}
                                 </TableCell>
-                                <TableCell>{getPriorityBadge(task.priority)}</TableCell>
-                                <TableCell className="text-sm text-muted-foreground">{formatDate(task.created_at)}</TableCell>
-                                <TableCell className="text-sm text-muted-foreground">{task.due_date ? formatDate(task.due_date) : "-"}</TableCell>
-                                <TableCell onClick={(e) => e.stopPropagation()}>
+                                <TableCell className="text-center">{getPriorityBadge(task.priority)}</TableCell>
+                                <TableCell className="text-sm text-muted-foreground text-center">{formatDate(task.created_at)}</TableCell>
+                                <TableCell className="text-sm text-muted-foreground text-center">{task.due_date ? formatDate(task.due_date) : "-"}</TableCell>
+                                <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
                                   {(me?.id === task.assigned_by || me?.role === "admin" || me?.role === "staff") && (
                                     <Button
                                       variant="ghost"

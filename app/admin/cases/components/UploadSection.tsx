@@ -9,9 +9,17 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { useToast } from "@/hooks/use-toast"
 import { Upload, FileUp, FolderUp } from "lucide-react"
-import { Progress } from "@/components/ui/progress"
 import { uploadWithProgress } from "@/lib/utils/upload-with-progress"
 
 const FILE_INPUT_ID = "datalistFileUpload"
@@ -35,14 +43,23 @@ const MAX_FOLDER_SIZE = 5 * 1024 * 1024 * 1024
 
 export interface UploadSectionProps {
   onSuccess?: () => void
+  onUploadStart?: () => void
+  onProgress?: (percent: number) => void
+  onUploadEnd?: () => void
 }
 
-export function UploadSection({ onSuccess }: UploadSectionProps) {
+export function UploadSection({
+  onSuccess,
+  onUploadStart,
+  onProgress,
+  onUploadEnd,
+}: UploadSectionProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const folderInputRef = useRef<HTMLInputElement>(null)
   const [loading, setLoading] = useState(false)
-  const [uploadProgress, setUploadProgress] = useState(0)
   const [dropdownOpen, setDropdownOpen] = useState(false)
+  const [errorOpen, setErrorOpen] = useState(false)
+  const [errorMessage, setErrorMessage] = useState("")
   const { toast } = useToast()
 
   const doFileUpload = async (file: File) => {
@@ -54,8 +71,9 @@ export function UploadSection({ onSuccess }: UploadSectionProps) {
       })
       return
     }
+    setDropdownOpen(false)
     setLoading(true)
-    setUploadProgress(0)
+    onUploadStart?.()
     try {
       const formData = new FormData()
       formData.append("file", file)
@@ -64,21 +82,18 @@ export function UploadSection({ onSuccess }: UploadSectionProps) {
         url: "/api/storage/upload",
         formData,
         withCredentials: true,
-        onProgress: (p) => setUploadProgress(p.percent),
+        onProgress: (p) => onProgress?.(p.percent),
       })
       const count = data.count ?? (data.fileId ? 1 : 0)
       toast({ title: "업로드 완료", description: `${count}개 파일이 S3에 업로드되었습니다.` })
-      setDropdownOpen(false)
       onSuccess?.()
     } catch (err) {
-      toast({
-        title: "업로드 실패",
-        description: err instanceof Error ? err.message : "업로드에 실패했습니다.",
-        variant: "destructive",
-      })
+      const msg = err instanceof Error ? err.message : "업로드에 실패했습니다."
+      setErrorMessage(msg)
+      setErrorOpen(true)
     } finally {
       setLoading(false)
-      setUploadProgress(0)
+      onUploadEnd?.()
       if (fileInputRef.current) fileInputRef.current.value = ""
     }
   }
@@ -107,8 +122,9 @@ export function UploadSection({ onSuccess }: UploadSectionProps) {
       ? firstFile.webkitRelativePath.split("/").slice(0, -1).join("/").split(/[/\\]/).pop() || "upload"
       : "upload"
 
+    setDropdownOpen(false)
     setLoading(true)
-    setUploadProgress(0)
+    onUploadStart?.()
     try {
       const formData = new FormData()
       files.forEach((file) => formData.append("files", file))
@@ -117,21 +133,18 @@ export function UploadSection({ onSuccess }: UploadSectionProps) {
         url: "/api/storage/upload",
         formData,
         withCredentials: true,
-        onProgress: (p) => setUploadProgress(p.percent),
+        onProgress: (p) => onProgress?.(p.percent),
       })
       const count = data.count ?? files.length
       toast({ title: "업로드 완료", description: `${count}개 파일이 S3에 업로드되었습니다.` })
-      setDropdownOpen(false)
       onSuccess?.()
     } catch (err) {
-      toast({
-        title: "업로드 실패",
-        description: err instanceof Error ? err.message : "업로드에 실패했습니다.",
-        variant: "destructive",
-      })
+      const msg = err instanceof Error ? err.message : "업로드에 실패했습니다."
+      setErrorMessage(msg)
+      setErrorOpen(true)
     } finally {
       setLoading(false)
-      setUploadProgress(0)
+      onUploadEnd?.()
       if (fileInputRef.current) fileInputRef.current.value = ""
       if (folderInputRef.current) folderInputRef.current.value = ""
     }
@@ -206,12 +219,20 @@ export function UploadSection({ onSuccess }: UploadSectionProps) {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-      {loading && (
-        <div className="w-full max-w-xs space-y-1">
-          <Progress value={uploadProgress} className="h-2" />
-          <p className="text-xs text-muted-foreground">업로드 중 {uploadProgress}%</p>
-        </div>
-      )}
+
+      <AlertDialog open={errorOpen} onOpenChange={setErrorOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>업로드 실패</AlertDialogTitle>
+            <AlertDialogDescription className="whitespace-pre-wrap text-destructive/90">
+              {errorMessage}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setErrorOpen(false)}>확인</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

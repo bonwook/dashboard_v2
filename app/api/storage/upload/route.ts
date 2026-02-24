@@ -3,7 +3,7 @@ import { verifyToken } from "@/lib/auth"
 import { uploadToS3, isAwsCredentialsError, AWS_CREDENTIALS_USER_MESSAGE } from "@/lib/aws/s3"
 import { query } from "@/lib/db/mysql"
 import { randomUUID } from "crypto"
-import { sanitizeFilename, isValidFilename } from "@/lib/utils/filename"
+import { isValidFilename } from "@/lib/utils/filename"
 import { validateMimeType } from "@/lib/utils/mime-validator"
 
 // 지원하는 확장자 목록
@@ -95,9 +95,7 @@ export async function POST(request: NextRequest) {
     const file = formData.get("file") as File | null
     const files = formData.getAll("files") as File[] // 폴더 업로드용
     const path = formData.get("path") as string | null
-    const bucket = formData.get("bucket") as string | null
     const fileType = formData.get("fileType") as string | null // excel, pdf, dicom
-    const description = formData.get("description") as string | null
     const folderName = formData.get("folderName") as string | null // 폴더 이름
     const useProgressZipPath = formData.get("useProgressZipPath") === "true" // ProgressZip 경로 사용 여부
 
