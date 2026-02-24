@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import {
   LayoutDashboard,
-  Upload,
   Activity,
   FileText,
   BarChart3,
@@ -22,7 +21,6 @@ const navItems = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/cases", label: "Datalist", icon: Activity },
   { href: "/admin/analytics", label: "Work", icon: BarChart3 },
-  { href: "/admin/file-upload", label: "Upload", icon: Upload },
   { href: "/admin/progress", label: "Progress", icon: FileText },
   { href: "/admin/reports", label: "Reports", icon: FileText },
 ]

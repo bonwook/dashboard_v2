@@ -156,24 +156,22 @@ export async function POST(request: NextRequest) {
         }
       }
       
-      // 폴더 이름 정규화 (공백, 특수문자 처리)
+      // 폴더 이름 정규화 (공백, 특수문자 처리). 폴더 업로드 시 항상 폴더명 구간 사용
       if (finalFolderName) {
-        // 슬래시, 백슬래시 제거 및 공백 정리
         finalFolderName = finalFolderName.replace(/[/\\]/g, '-').trim()
-        // 빈 문자열이면 다시 설정하지 않음
-        if (!finalFolderName) {
-          finalFolderName = ""
-        }
+        if (!finalFolderName) finalFolderName = "upload"
+      } else {
+        finalFolderName = "upload"
       }
-      
+
       // 폴더 내 파일명 중복 체크를 위한 Set
       const fileNamesInFolder = new Set<string>()
       // 실제 업로드된 파일의 s3_key를 추적하여 중복 방지
       const uploadedS3Keys = new Set<string>()
-      
+
       for (const uploadFile of files) {
         const extension = uploadFile.name.split('.').pop()?.toLowerCase()
-        
+
         // 확장자 필터링
         if (!extension || !extensions.includes(extension)) {
           continue
@@ -191,7 +189,7 @@ export async function POST(request: NextRequest) {
 
         const buffer = Buffer.from(await uploadFile.arrayBuffer())
         const contentType = uploadFile.type || "application/octet-stream"
-        
+
         // 파일명 추출: webkitRelativePath가 있으면 파일명만, 없으면 uploadFile.name에서 경로 제거
         // webkitRelativePath는 "폴더명/파일명" 형태이므로 파일명만 추출
         let baseFileName = uploadFile.name
@@ -207,7 +205,7 @@ export async function POST(request: NextRequest) {
             baseFileName = nameParts[nameParts.length - 1] // 마지막 부분이 파일명
           }
         }
-        
+
         // 파일명 보안 검증 및 Sanitization (경로 문자만 제거, 나머지 유지)
         // 경로 탐색 공격 방어를 위해 경로 관련 문자만 제거
         if (!isValidFilename(baseFileName)) {
@@ -218,21 +216,21 @@ export async function POST(request: NextRequest) {
           .replace(/\.\./g, "") // .. 제거
           .replace(/[\/\\]/g, "_") // /, \ 를 _ 로 변경
           .trim()
-        
+
         // 빈 문자열이면 원본 파일명 사용
         if (!sanitized) {
           sanitized = baseFileName.replace(/[\/\\]/g, "_").trim() || "file"
         }
-        
+
         // 파일명 길이 제한 (255자)
         if (sanitized.length > 255) {
           const ext = sanitized.split(".").pop()
           const nameWithoutExt = sanitized.substring(0, sanitized.lastIndexOf("."))
           sanitized = nameWithoutExt.substring(0, 255 - (ext ? ext.length + 1 : 0)) + (ext ? `.${ext}` : "")
         }
-        
+
         baseFileName = sanitized
-        
+
         // 파일명 중복 처리: 같은 이름이 있으면 timestamp 추가
         let fileName = baseFileName
         if (fileNamesInFolder.has(fileName)) {
@@ -243,23 +241,15 @@ export async function POST(request: NextRequest) {
           fileName = `${nameWithoutExt}-${timestamp}.${ext}`
         }
         fileNamesInFolder.add(fileName)
-        
-        // 계층구조: {userId}/{extension}/{filename} 또는 temp/Dicom/{userId}/{filename}
-        // - dicom 파일인 경우: temp/Dicom/{userId}/정한 폴더이름/파일들 또는 temp/Dicom/{userId}/파일들
-        // - excel, pdf, nifti, other, zip 파일인 경우: {userId}/{extension}/정한 폴더이름/파일들 또는 {userId}/{extension}/파일들
+
+        // 폴더 업로드 시: userId 바로 아래 폴더명. dicom → temp/Dicom/{userId}/{폴더명}/{fileName}, 그 외 → {userId}/{폴더명}/{fileName}
         let s3Key: string
         if (determinedFileType === 'dicom') {
-          s3Key = finalFolderName 
-            ? `temp/Dicom/${userId}/${finalFolderName}/${fileName}`
-            : `temp/Dicom/${userId}/${fileName}`
+          s3Key = `temp/Dicom/${userId}/${finalFolderName}/${fileName}`
         } else {
-          // 확장자명 폴더로 저장
-          const extensionFolder = getExtensionFolder(uploadFile.name)
-          s3Key = finalFolderName 
-            ? `${userId}/${extensionFolder}/${finalFolderName}/${fileName}`
-            : `${userId}/${extensionFolder}/${fileName}`
+          s3Key = `${userId}/${finalFolderName}/${fileName}`
         }
-        
+
         // 중복 s3_key 체크: 이미 업로드된 파일이면 스킵
         if (uploadedS3Keys.has(s3Key)) {
           continue
@@ -273,7 +263,7 @@ export async function POST(request: NextRequest) {
         const fileId = randomUUID()
         await query(
           `INSERT INTO user_files (
-            id, user_id, file_name, file_path, s3_key, s3_bucket, 
+            id, user_id, file_name, file_path, s3_key, s3_bucket,
             file_size, content_type, file_type, uploaded_at
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
           [

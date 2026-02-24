@@ -1,33 +1,41 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useMemo } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Activity, Clock, AlertCircle, CheckCircle2, Loader2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { Loader2, Inbox, ChevronRight } from "lucide-react"
 import Link from "next/link"
-import { Button } from "@/components/ui/button"
+import { useRouter } from "next/navigation"
 import { AdminCalendar } from "@/components/admin-calendar"
+import type { S3UpdateRow } from "@/lib/types"
 
-interface DashboardStats {
-  totalTasks: number
-  completedTasks: number
-  urgentPriorityTasks: number
-  highPriorityTasks: number
-  mediumPriorityTasks: number
-  lowPriorityTasks: number
-  totalClients: number
-  totalReports: number
-  totalStaff: number
-  totalAdmins: number
-  completionRate: number
+/** 오늘(KST) YYYY-MM-DD */
+function getTodayKST(): string {
+  const now = new Date()
+  const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000)
+  return kst.toISOString().slice(0, 10)
+}
+
+/** 날짜 문자열(ISO 등)을 KST 기준 날짜(YYYY-MM-DD)로 변환 */
+function toKSTDateString(dateStr: string | null | undefined): string | null {
+  if (!dateStr) return null
+  const d = new Date(dateStr)
+  const kst = new Date(d.getTime() + 9 * 60 * 60 * 1000)
+  return kst.toISOString().slice(0, 10)
+}
+
+/** 해당 날짜가 오늘(KST)인지 */
+function isToday(dateStr: string | null | undefined): boolean {
+  const datePart = toKSTDateString(dateStr)
+  return datePart !== null && datePart === getTodayKST()
 }
 
 export default function AdminOverviewPage() {
+  const router = useRouter()
   const [user, setUser] = useState<any>(null)
-  const [stats, setStats] = useState<DashboardStats | null>(null)
+  const [s3Updates, setS3Updates] = useState<S3UpdateRow[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
-  const [isRefreshing, setIsRefreshing] = useState(false)
 
   const loadUser = async () => {
     try {
@@ -41,51 +49,38 @@ export default function AdminOverviewPage() {
     }
   }
 
-  const loadStats = async (isManualRefresh = false) => {
-    if (isManualRefresh) {
-      setIsRefreshing(true)
-    }
+  const loadS3Updates = async () => {
     try {
-      const res = await fetch("/api/analytics/dashboard", { 
+      const res = await fetch("/api/s3-updates", {
         credentials: "include",
-        cache: "no-store" 
+        cache: "no-store",
       })
       if (res.ok) {
         const data = await res.json()
-        setStats(data)
+        setS3Updates(data.s3Updates || [])
         setLastUpdated(new Date())
+      } else {
+        setS3Updates([])
       }
     } catch (error) {
-      console.error("통계 로드 오류:", error)
+      console.error("S3 업데이트 목록 로드 오류:", error)
+      setS3Updates([])
     } finally {
       setIsLoading(false)
-      if (isManualRefresh) {
-        setIsRefreshing(false)
-      }
     }
   }
 
   useEffect(() => {
     loadUser()
-    loadStats()
-    
-    // 30초마다 자동 새로고침
-    const interval = setInterval(() => {
-      loadStats()
-    }, 30000)
-    
-    // 페이지 포커스 시 자동 새로고침
-    const handleFocus = () => {
-      loadStats()
-    }
-    
-    window.addEventListener('focus', handleFocus)
-    
-    return () => {
-      clearInterval(interval)
-      window.removeEventListener('focus', handleFocus)
-    }
+    loadS3Updates()
   }, [])
+
+  const todayS3Updates = useMemo(() => {
+    return s3Updates.filter(
+      (row) =>
+        isToday(row.upload_time ?? null) || isToday(row.created_at ?? null)
+    )
+  }, [s3Updates])
 
   if (isLoading) {
     return (
@@ -101,10 +96,9 @@ export default function AdminOverviewPage() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">시스템 개요</h1>
           <p className="text-muted-foreground">
-            
             {lastUpdated && (
               <span className="ml-0 text-xs">
-                (최근 업데이트: {lastUpdated.toLocaleTimeString('ko-KR')})
+                (최근 업데이트: {lastUpdated.toLocaleTimeString("ko-KR")})
               </span>
             )}
           </p>
@@ -118,72 +112,67 @@ export default function AdminOverviewPage() {
         </div>
       </div>
 
-      {stats && (
-        <>
-          {/* 1줄: 우선순위별 (긴급 / 높음 / 보통 / 낮음) */}
-          <div className="mb-8 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <Card className="border-l-4 border-l-red-500">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">긴급</CardTitle>
-                <AlertCircle className="h-5 w-5 text-red-500" />
-              </CardHeader>
-              <CardContent>
-                <Link
-                  href="/admin/cases?tab=worklist&priority=urgent"
-                  className="inline-block text-3xl font-bold text-red-500 hover:underline underline-offset-4"
-                >
-                  {stats.urgentPriorityTasks || 0}
-                </Link>
-              </CardContent>
-            </Card>
-
-            <Card className="border-l-4 border-l-orange-500">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">높음</CardTitle>
-                <Activity className="h-5 w-5 text-orange-500" />
-              </CardHeader>
-              <CardContent>
-                <Link
-                  href="/admin/cases?tab=worklist&priority=high"
-                  className="inline-block text-3xl font-bold text-orange-500 hover:underline underline-offset-4"
-                >
-                  {stats.highPriorityTasks || 0}
-                </Link>
-              </CardContent>
-            </Card>
-
-            <Card className="border-l-4 border-l-yellow-500">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">보통</CardTitle>
-                <Clock className="h-5 w-5 text-yellow-500" />
-              </CardHeader>
-              <CardContent>
-                <Link
-                  href="/admin/cases?tab=worklist&priority=medium"
-                  className="inline-block text-3xl font-bold text-yellow-500 hover:underline underline-offset-4"
-                >
-                  {stats.mediumPriorityTasks || 0}
-                </Link>
-              </CardContent>
-            </Card>
-
-            <Card className="border-l-4 border-l-blue-500">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">낮음</CardTitle>
-                <CheckCircle2 className="h-5 w-5 text-blue-500" />
-              </CardHeader>
-              <CardContent>
-                <Link
-                  href="/admin/cases?tab=worklist&priority=low"
-                  className="inline-block text-3xl font-bold text-blue-500 hover:underline underline-offset-4"
-                >
-                  {stats.lowPriorityTasks || 0}
-                </Link>
-              </CardContent>
-            </Card>
-          </div>
-        </>
-      )}
+      {/* 새로 들어온 업무 (S3 업데이트 기준) */}
+      <Card className="mb-8">
+        <CardHeader className="pb-2">
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <Inbox className="h-5 w-5 text-muted-foreground" />
+            새로 들어온 업무
+            <span className="text-sm font-normal text-muted-foreground">
+              ({todayS3Updates.length}건)
+            </span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {todayS3Updates.length === 0 ? (
+            <p className="text-muted-foreground text-sm">
+              새로 들어온 S3 업무가 없습니다.
+            </p>
+          ) : (
+            <ul className="space-y-2">
+              {todayS3Updates.map((row) => (
+                <li key={row.id}>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      row.task_id
+                        ? router.push(`/admin/cases/${row.task_id}`)
+                        : router.push(`/admin/cases/s3-update/${row.id}`)
+                    }
+                    className="flex w-full items-center justify-between gap-3 rounded-lg border bg-card p-3 text-left transition-colors hover:bg-muted/50"
+                  >
+                    <span className="inline-flex min-w-0 flex-1 items-center gap-2">
+                      <span className="inline-block h-2 w-2 shrink-0 rounded-full bg-amber-500/80" aria-hidden />
+                      <span className="truncate font-medium">
+                        {row.file_name || "(파일명 없음)"}
+                      </span>
+                      {row.task_id ? (
+                        <Badge variant="secondary" className="shrink-0 text-xs">
+                          업무 연결됨
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="shrink-0 text-xs">
+                          미할당
+                        </Badge>
+                      )}
+                    </span>
+                    <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {todayS3Updates.length > 0 && (
+            <Link
+              href="/admin/cases?tab=worklist"
+              className="mt-3 inline-flex items-center gap-1 text-sm text-primary hover:underline"
+            >
+              전체 업무 목록 보기
+              <ChevronRight className="h-4 w-4" />
+            </Link>
+          )}
+        </CardContent>
+      </Card>
 
       <AdminCalendar />
     </div>

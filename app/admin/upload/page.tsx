@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation"
 export default function UploadRedirectPage() {
   const router = useRouter()
   useEffect(() => {
-    router.replace("/admin/file-upload")
+    router.replace("/admin/cases")
   }, [router])
   return null
 }
