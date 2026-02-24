@@ -539,7 +539,7 @@ export default function WorklistPage() {
                               </TableCell>
                               <TableCell className="text-sm text-muted-foreground">-</TableCell>
                               <TableCell onClick={(e) => e.stopPropagation()}>
-                                {(me?.role === "admin" || me?.role === "staff") && (
+                                {(me?.role === "staff") && (
                                   <Button
                                     variant="ghost"
                                     size="icon"
@@ -593,7 +593,7 @@ export default function WorklistPage() {
                                 </TableCell>
                                 <TableCell className="text-sm text-muted-foreground">-</TableCell>
                                 <TableCell onClick={(e) => e.stopPropagation()}>
-                                  {(me?.role === "admin" || me?.role === "staff") && (
+                                  {(me?.role === "staff") && (
                                     <Button
                                       variant="ghost"
                                       size="icon"
@@ -636,7 +636,7 @@ export default function WorklistPage() {
                                   {task.due_date ? formatDate(task.due_date) : "-"}
                                 </TableCell>
                                 <TableCell onClick={(e) => e.stopPropagation()}>
-                                  {(me?.id === task.assigned_by || me?.role === "admin" || me?.role === "staff") && (
+                                  {(me?.id === task.assigned_by || me?.role === "staff") && (
                                     <Button
                                       variant="ghost"
                                       size="icon"
@@ -682,7 +682,7 @@ export default function WorklistPage() {
                               {task.due_date ? formatDate(task.due_date) : "-"}
                             </TableCell>
                             <TableCell onClick={(e) => e.stopPropagation()}>
-                              {(me?.id === task.assigned_by || me?.role === "admin" || me?.role === "staff") && (
+                              {(me?.id === task.assigned_by || me?.role === "staff") && (
                                 <Button
                                   variant="ghost"
                                   size="icon"

@@ -168,7 +168,7 @@ export function TaskCommentSection({
         ) : (
           comments.map((c, index) => {
             const canDelete =
-              allowDelete && ((me?.id && c.user_id === me.id) || userRole === "admin" || userRole === "staff")
+              allowDelete && ((me?.id && c.user_id === me.id) || userRole === "staff")
             const isMe = me?.id && c.user_id === me.id
             const userOrder = Array.from(new Set(comments.map((x) => x.user_id)))
             const userIndex = userOrder.indexOf(c.user_id)

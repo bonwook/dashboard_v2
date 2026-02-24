@@ -106,7 +106,7 @@ export function AdminNav({ user }: AdminNavProps) {
           </div>
         </div>
         <div className="flex items-center gap-4">
-          {user.role === "admin" && (
+          {false && (
             <>
               <Button variant="ghost" size="sm" asChild>
                 <Link href="https://15.164.184.250/" target="_blank" rel="noopener noreferrer">

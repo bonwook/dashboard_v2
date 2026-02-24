@@ -15,10 +15,9 @@ import {
 import { Users, Shield, User, UserCog, Check, X, Loader2 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 
-type Role = "admin" | "staff" | "client"
+type Role = "staff" | "client"
 
 const ROLE_LABELS: Record<Role, string> = {
-  admin: "Admin",
   staff: "Staff",
   client: "Client",
 }
@@ -40,8 +39,7 @@ export default function UserManagementPage() {
   const [updatingRoleId, setUpdatingRoleId] = useState<string | null>(null)
   const { toast } = useToast()
 
-  const isAdmin = userRole === "admin"
-  const allowedRoles: Role[] = isAdmin ? ["admin", "staff", "client"] : ["staff", "client"]
+  const allowedRoles: Role[] = ["staff", "client"]
 
   useEffect(() => {
     const loadUser = async () => {
@@ -50,7 +48,7 @@ export default function UserManagementPage() {
         if (!response.ok) return
         const userData = await response.json()
         setUserRole(userData.role)
-        if (userData.role === "admin" || userData.role === "staff") {
+        if (userData.role === "staff") {
           loadUsers()
         }
       } catch (error) {
@@ -179,7 +177,6 @@ export default function UserManagementPage() {
       )
     }
     const roleConfig = {
-      admin: { label: "Admin", className: "bg-purple-500/10 text-purple-500 border-purple-500/20" },
       staff: { label: "Staff", className: "bg-blue-500/10 text-blue-500 border-blue-500/20" },
       client: { label: "Client", className: "bg-green-500/10 text-green-500 border-green-500/20" },
     }
@@ -188,24 +185,17 @@ export default function UserManagementPage() {
   }
 
   const getRoleIcon = (role: string) => {
-    switch (role) {
-      case "admin":
-        return <Shield className="h-4 w-4" />
-      case "staff":
-        return <UserCog className="h-4 w-4" />
-      default:
-        return <User className="h-4 w-4" />
-    }
+    return role === "staff" ? <UserCog className="h-4 w-4" /> : <User className="h-4 w-4" />
   }
 
-  if (userRole != null && userRole !== "admin" && userRole !== "staff") {
+  if (userRole != null && userRole !== "staff") {
     return (
       <div className="mx-auto max-w-7xl p-6">
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <Shield className="h-12 w-12 text-muted-foreground mb-4" />
             <p className="text-muted-foreground">Access Denied</p>
-            <p className="text-sm text-muted-foreground">관리자 또는 Staff만 접근할 수 있습니다.</p>
+            <p className="text-sm text-muted-foreground">Staff만 접근할 수 있습니다.</p>
           </CardContent>
         </Card>
       </div>
@@ -250,12 +240,12 @@ export default function UserManagementPage() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Admins</CardTitle>
-            <Shield className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Staff</CardTitle>
+            <UserCog className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-purple-500">
-              {users.filter((u) => u.role === "admin").length}
+            <div className="text-2xl font-bold text-blue-500">
+              {users.filter((u) => u.role === "staff").length}
             </div>
           </CardContent>
         </Card>

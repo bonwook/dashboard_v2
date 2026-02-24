@@ -15,8 +15,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Invalid token" }, { status: 401 })
     }
 
-    // Admin/Staff만 접근 가능
-    if (decoded.role !== "admin" && decoded.role !== "staff") {
+    if (decoded.role !== "staff") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
@@ -55,9 +54,7 @@ export async function GET(request: NextRequest) {
 
     const completionRate = totalTasks ? Math.round((completedTasks / totalTasks) * 100) : 0
 
-    // Get staff count for admin
     const totalStaff = await countOne(`SELECT COUNT(*) as cnt FROM profiles WHERE role = 'staff'`)
-    const totalAdmins = await countOne(`SELECT COUNT(*) as cnt FROM profiles WHERE role = 'admin'`)
 
     return NextResponse.json({
       totalTasks,
@@ -69,7 +66,6 @@ export async function GET(request: NextRequest) {
       totalClients,
       totalReports,
       totalStaff,
-      totalAdmins,
       completionRate,
     })
   } catch (error) {

@@ -1,5 +1,5 @@
 -- s3_updates 행이 생성될 때 task_assignments에 placeholder 행 자동 생성 및 s3_updates.task_id/status 연결
--- 전제: profiles 테이블에 최소 1명의 레코드가 있어야 함 (admin 우선, 없으면 아무 1명)
+-- 전제: profiles 테이블에 최소 1명의 레코드가 있어야 함 (staff 우선, 없으면 아무 1명)
 -- 실행 전 add_s3_updates_status.sql 적용 필수 (s3_updates.status 컬럼 필요)
 --
 -- 1419 에러가 나면: binary logging 환경에서 트리거 제한 때문입니다.
@@ -28,8 +28,8 @@ BEGIN
     SUBSTRING(h, 1, 8), '-', SUBSTRING(h, 9, 4), '-4', SUBSTRING(h, 13, 3), '8', SUBSTRING(h, 16, 3), '-', SUBSTRING(h, 19, 12)
   );
 
-  -- assigned_to, assigned_by용 프로필 1명 (admin 우선, 결정적 복제를 위해 ORDER BY 사용)
-  SELECT id INTO aid FROM profiles WHERE role = 'admin' ORDER BY id LIMIT 1;
+  -- assigned_to, assigned_by용 프로필 1명 (staff 우선, 결정적 복제를 위해 ORDER BY 사용)
+  SELECT id INTO aid FROM profiles WHERE role = 'staff' ORDER BY id LIMIT 1;
   IF aid IS NULL THEN
     SELECT id INTO aid FROM profiles ORDER BY id LIMIT 1;
   END IF;

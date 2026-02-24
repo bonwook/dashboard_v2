@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
     }
 
     const userRole = userRoleRes[0].role
-    if (userRole !== "admin" && userRole !== "staff") {
+    if (userRole !== "staff") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 

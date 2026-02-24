@@ -50,7 +50,7 @@ export default function SettingsPage() {
             <div className="rounded-lg border bg-muted/30 p-4 text-sm space-y-2">
               <p className="font-medium">역할별 접속 경로</p>
               <ul className="list-disc list-inside text-muted-foreground space-y-1">
-                <li><strong className="text-foreground">Admin / Staff</strong>: 로그인 후 /admin (Dashboard, Datalist, Progress, Reports, Settings)</li>
+                <li><strong className="text-foreground">Staff</strong>: 로그인 후 /admin (Dashboard, Datalist, Progress, Reports, Settings)</li>
                 <li><strong className="text-foreground">Client</strong>: 로그인 후 /client (대시보드, Segmentation, Progress, Excel, Reports)</li>
               </ul>
             </div>
@@ -59,7 +59,7 @@ export default function SettingsPage() {
               <ul className="list-disc list-inside text-muted-foreground space-y-1">
                 <li>Client → Staff: 해당 사용자는 다음 로그인부터 /admin 영역에 접근할 수 있습니다.</li>
                 <li>Staff → Client: 해당 사용자는 /client 영역만 사용하게 됩니다.</li>
-                <li>Admin 역할 부여/변경은 Admin 계정으로 로그인한 경우에만 가능합니다.</li>
+                <li>역할 변경은 Staff 계정으로 로그인한 경우에만 가능합니다.</li>
               </ul>
             </div>
           </CardContent>

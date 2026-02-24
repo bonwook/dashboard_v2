@@ -15,7 +15,7 @@ function getJwtSecret(): string {
 export interface AuthUser {
   id: string
   email: string
-  role: "admin" | "client" | "staff"
+  role: "client" | "staff"
   full_name: string | null
   organization: string | null
 }
@@ -61,7 +61,7 @@ export async function createUser(
   password: string,
   fullName?: string,
   organization?: string,
-  role: "admin" | "client" | "staff" = "client",
+  role: "client" | "staff" = "client",
 ): Promise<AuthUser> {
   const id = uuidv4()
   const passwordHash = await hashPassword(password)
@@ -87,7 +87,7 @@ export async function createUserWithHash(
   passwordHash: string,
   fullName?: string,
   organization?: string,
-  role: "admin" | "client" | "staff" = "client",
+  role: "client" | "staff" = "client",
 ): Promise<AuthUser> {
   const id = uuidv4()
   await query(

@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
     if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     const decoded = verifyToken(token)
     if (!decoded) return NextResponse.json({ error: "Invalid token" }, { status: 401 })
-    if (decoded.role !== "admin" && decoded.role !== "staff") {
+    if (decoded.role !== "staff") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
     if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     const decoded = verifyToken(token)
     if (!decoded) return NextResponse.json({ error: "Invalid token" }, { status: 401 })
-    if (decoded.role !== "admin" && decoded.role !== "staff") {
+    if (decoded.role !== "staff") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 

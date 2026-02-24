@@ -42,8 +42,7 @@ export async function GET(request: NextRequest) {
     sql += " ORDER BY created_at DESC"
     const profiles = await query(sql, params)
 
-    const isAdminOrStaff = decoded.role === "admin" || decoded.role === "staff"
-    if (!isAdminOrStaff) {
+    if (decoded.role !== "staff") {
       return NextResponse.json(profiles)
     }
 

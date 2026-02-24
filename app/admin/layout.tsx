@@ -13,8 +13,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     redirect("/auth/login")
   }
 
-  // Check if user has admin or staff role
-  if (user.role !== "admin" && user.role !== "staff") {
+  if (user.role !== "staff") {
     redirect("/client")
   }
 

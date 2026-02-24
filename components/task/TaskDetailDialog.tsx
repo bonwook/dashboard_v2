@@ -465,7 +465,6 @@ export function TaskDetailDialog({
     (displayTask.status === "awaiting_completion" ||
       (subtasks.length > 0 && allSubtasksCompleted)) &&
     (user?.id === displayTask.assigned_by ||
-      userRole === "admin" ||
       userRole === "staff")
 
   return (

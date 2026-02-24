@@ -1025,7 +1025,7 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
 
   const handleFinalizeTask = useCallback(async () => {
     if (!taskId || !task) return
-    if (!(userRole === "admin" || userRole === "staff")) return
+    if (userRole !== "staff") return
     if (task.status === "completed") return
 
     setIsFinalizing(true)
@@ -1103,7 +1103,7 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
   }
 
   // 수정 권한: 요청자(assigned_by) 또는 admin (admin = staff 동일 취급)
-  const canEditTask = userRole === "admin" || userRole === "staff" || me?.id === task.assigned_by
+  const canEditTask = userRole === "staff" || me?.id === task.assigned_by
   // 공동 업무: 서브태스크에 본인이 있을 때만 수정/첨부 버튼 노출 (파일 추가 등)
   const hasMeInSubtasks = subtasks.length > 0 && subtasks.some((s) => s.assigned_to === me?.id)
   const showRequesterEditAndAttach = subtasks.length === 0 ? canEditTask : (canEditTask && hasMeInSubtasks)
@@ -1111,7 +1111,7 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
   const showRequesterContentEditButton = canEditTask
   // 담당자(admin = staff)만 상태 변경 가능, 요청자(assigned_by)는 상태 선택 블록 미노출
   const canChangeStatus =
-    (userRole === "staff" || userRole === "admin") && me?.id !== task.assigned_by
+    userRole === "staff" && me?.id !== task.assigned_by
 
   return (
     <div className="mx-auto max-w-7xl p-6">
@@ -3036,7 +3036,7 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
             <p className="text-sm text-muted-foreground text-center py-8">아직 댓글이 없습니다.</p>
           ) : (
             comments.map((c) => {
-              const canDelete = (me?.id && c.user_id === me.id) || userRole === "admin" || userRole === "staff"
+              const canDelete = (me?.id && c.user_id === me.id) || userRole === "staff"
               const isMe = me?.id && c.user_id === me.id
 
               // 공동사용자별 말풍선 색 (등장 순서로 고정)
@@ -3208,7 +3208,7 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
 
       {/* 작업완료 버튼: 담당자(admin = staff 동일)에게 항상 표시 (미완료 작업만). 완료대기일 때 옆에 업무 재요청 버튼 */}
       {canEditTask &&
-       (userRole === "admin" || userRole === "staff") &&
+       userRole === "staff" &&
        task.status !== "completed" && (
         <div className="mt-10 flex justify-center gap-3 flex-wrap">
           {task.status === "awaiting_completion" && (

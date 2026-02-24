@@ -122,9 +122,9 @@ export default function AdminOverviewPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {(user?.role === "admin" || user?.role === "staff") && (
-            <Badge className="bg-purple-500/10 text-purple-500 border-purple-500/20 px-3 py-1">
-              {user?.role === "admin" ? "관리자" : "Staff"}
+          {user?.role === "staff" && (
+            <Badge className="bg-blue-500/10 text-blue-500 border-blue-500/20 px-3 py-1">
+              Staff
             </Badge>
           )}
         </div>

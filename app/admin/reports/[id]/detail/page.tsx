@@ -25,7 +25,7 @@ export default async function ReportDetailPage({ params }: { params: Promise<{ i
   const { id } = await params
   const me = await getCurrentUser()
   if (!me) redirect("/auth/login")
-  if (me.role !== "admin" && me.role !== "staff") redirect("/admin")
+  if (me.role !== "staff") redirect("/admin")
 
   const task = await queryOne<any>(
     `

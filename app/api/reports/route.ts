@@ -70,8 +70,8 @@ ${files.length ? `<h3>첨부파일</h3><ul>${files.map((k) => `<li>${escapeHtml(
       : false
 
     let reports
-    if (userRole === "admin" || userRole === "staff") {
-      // Admin/Staff는 모든 완료된 작업 조회
+    if (userRole === "staff") {
+      // Staff는 모든 완료된 작업 조회
       reports = await query(
         hasReportsTable
           ? `
@@ -218,8 +218,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid token" }, { status: 401 })
     }
 
-    // Admin/Staff만 리포트 생성 가능
-    if (decoded.role !== "admin" && decoded.role !== "staff") {
+    if (decoded.role !== "staff") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 

@@ -1,4 +1,4 @@
-export type UserRole = "admin" | "client" | "staff"
+export type UserRole = "client" | "staff"
 
 export type CaseStatus = "registered" | "processing" | "completed" | "failed"
 

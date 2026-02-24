@@ -26,7 +26,7 @@ export async function POST(
     // 요청자 권한 확인 (staff/admin이면 다른 유저의 task도 report 생성 가능)
     const roleRows = await query(`SELECT role FROM profiles WHERE id = ?`, [decoded.id])
     const role = roleRows && roleRows.length > 0 ? (roleRows[0] as any).role : null
-    const isAdminOrStaff = role === "admin" || role === "staff"
+    const isStaff = role === "staff"
 
     // Task 정보 가져오기
     const [task] = await query(
@@ -53,7 +53,7 @@ export async function POST(
     }
 
     // 기본: assigned_to만 생성 가능. 단, staff/admin은 예외적으로 생성 가능.
-    if (!isAdminOrStaff && task.assigned_to !== decoded.id) {
+    if (!isStaff && task.assigned_to !== decoded.id) {
       return NextResponse.json({ error: "권한이 없습니다" }, { status: 403 })
     }
 

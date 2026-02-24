@@ -40,7 +40,7 @@ export default function LoginPage() {
       await new Promise((resolve) => setTimeout(resolve, 100))
 
       // Redirect based on role using window.location for full page reload
-      if (data.user.role === "admin" || data.user.role === "staff") {
+      if (data.user.role === "staff") {
         window.location.href = "/admin"
       } else {
         window.location.href = "/client"

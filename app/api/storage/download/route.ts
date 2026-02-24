@@ -56,7 +56,7 @@ export async function GET(request: NextRequest) {
           const taskId = (rows[0] as { task_id: string }).task_id
           const roleRows = await query(`SELECT role FROM profiles WHERE id = ?`, [userId])
           const role = roleRows?.[0] ? (roleRows[0] as { role: string }).role : null
-          if (role === "admin" || role === "staff") {
+          if (role === "staff") {
             mayDownload = true
           } else {
             const accessRows = await query(

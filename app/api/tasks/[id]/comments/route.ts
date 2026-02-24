@@ -42,8 +42,8 @@ async function ensureCommentsTable() {
 }
 
 async function canAccessComments(userId: string, role: string | null, taskId: string) {
-  const isAdminOrStaff = role === "admin" || role === "staff"
-  if (isAdminOrStaff) return true
+  const isStaff = role === "staff"
+  if (isStaff) return true
   
   // 메인 태스크 확인 (서브태스크 담당자도 허용: 공동 업무)
   const taskRows = await query(`SELECT assigned_to, assigned_by FROM task_assignments WHERE id = ?`, [taskId])
@@ -201,7 +201,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
     const roleRows = await query(`SELECT role FROM profiles WHERE id = ?`, [decoded.id])
     const role = (roleRows as any[])?.[0]?.role || null
-    const isAdminOrStaff = role === "admin" || role === "staff"
+    const isStaff = role === "staff"
 
     const allowed = await canAccessComments(decoded.id, role, taskId)
     if (!allowed) return NextResponse.json({ error: "권한이 없습니다" }, { status: 403 })
@@ -216,7 +216,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     if (!comment) return NextResponse.json({ error: "댓글을 찾을 수 없습니다" }, { status: 404 })
 
     // admin/staff는 타인 댓글 삭제 가능, 그 외는 본인 댓글만
-    if (!isAdminOrStaff && comment.user_id !== decoded.id) {
+    if (!isStaff && comment.user_id !== decoded.id) {
       return NextResponse.json({ error: "본인 댓글만 삭제할 수 있습니다" }, { status: 403 })
     }
 

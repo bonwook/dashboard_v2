@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
       [decoded.id]
     )
     const userRole = userRoleData?.role || null
-    const isStaff = userRole === "admin" || userRole === "staff"
+    const isStaff = userRole === "staff"
 
     const { searchParams } = new URL(request.url)
     const year = searchParams.get("year")

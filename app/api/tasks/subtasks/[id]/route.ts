@@ -27,7 +27,7 @@ export async function PATCH(
       [decoded.id]
     )
     const userRole = userRoleRes && userRoleRes.length > 0 ? userRoleRes[0].role : null
-    const isAdminOrStaff = userRole === "admin" || userRole === "staff"
+    const isStaff = userRole === "staff"
 
     // Subtask 확인
     const [subtask] = await query(
@@ -44,7 +44,7 @@ export async function PATCH(
 
     // 권한 확인: admin/staff는 모든 subtask 업데이트 가능, 
     // 그 외는 자신이 담당자이거나 메인 task 생성자인 경우만 가능
-    if (!isAdminOrStaff && subtask.assigned_to !== decoded.id && subtask.assigned_by !== decoded.id) {
+    if (!isStaff && subtask.assigned_to !== decoded.id && subtask.assigned_by !== decoded.id) {
       return NextResponse.json({ error: "권한이 없습니다" }, { status: 403 })
     }
 

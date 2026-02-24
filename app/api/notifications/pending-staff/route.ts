@@ -19,7 +19,7 @@ export async function GET() {
   }
 
   const user = verifyToken(authToken)
-  if (!user || (user.role !== "staff" && user.role !== "admin")) {
+  if (!user || user.role !== "staff") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 

@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS profiles (
   password_hash VARCHAR(255) NOT NULL,
   full_name VARCHAR(255),
   organization VARCHAR(255),
-  role ENUM('admin', 'client', 'staff') NOT NULL DEFAULT 'client',
+  role ENUM('client', 'staff') NOT NULL DEFAULT 'client',
   memo TEXT DEFAULT NULL COMMENT 'User notes/memo',
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

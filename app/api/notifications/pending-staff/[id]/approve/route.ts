@@ -18,7 +18,7 @@ export async function POST(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
   const user = verifyToken(token)
-  if (!user || (user.role !== "staff" && user.role !== "admin")) {
+  if (!user || user.role !== "staff") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 

@@ -27,7 +27,7 @@ export async function GET(
       [decoded.id]
     )
     const userRole = userRoleRes && userRoleRes.length > 0 ? userRoleRes[0].role : null
-    const isAdminOrStaff = userRole === "admin" || userRole === "staff"
+    const isStaff = userRole === "staff"
 
     // Task 확인 및 권한 체크
     const [task] = await query(
@@ -42,14 +42,14 @@ export async function GET(
     // 권한: admin/staff, 메인 담당자·요청자, 또는 이 메인 업무의 서브태스크 담당자(공동 업무)
     const isMainParty = task.assigned_to === decoded.id || task.assigned_by === decoded.id
     let isSubtaskAssignee = false
-    if (!isAdminOrStaff && !isMainParty) {
+    if (!isStaff && !isMainParty) {
       const subtaskAssign = await query(
         "SELECT 1 FROM task_subtasks WHERE task_id = ? AND assigned_to = ? LIMIT 1",
         [taskId, decoded.id]
       )
       isSubtaskAssignee = Array.isArray(subtaskAssign) && subtaskAssign.length > 0
     }
-    if (!isAdminOrStaff && !isMainParty && !isSubtaskAssignee) {
+    if (!isStaff && !isMainParty && !isSubtaskAssignee) {
       return NextResponse.json({ error: "권한이 없습니다" }, { status: 403 })
     }
 

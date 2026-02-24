@@ -33,9 +33,9 @@ export async function requireAuth(): Promise<AuthUser> {
   return user
 }
 
-export async function requireRole(role: "admin" | "staff" | "client"): Promise<AuthUser> {
+export async function requireRole(role: "staff" | "client"): Promise<AuthUser> {
   const user = await requireAuth()
-  if (user.role !== role && user.role !== "admin") {
+  if (user.role !== role) {
     throw new Error("Insufficient permissions")
   }
   return user

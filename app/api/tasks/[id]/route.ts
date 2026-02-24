@@ -139,7 +139,7 @@ export async function GET(
     )
 
     const userRole = userRoleRes && userRoleRes.length > 0 ? userRoleRes[0].role : null
-    const isAdminOrStaff = userRole === "admin" || userRole === "staff"
+    const isStaff = userRole === "staff"
 
     // 먼저 메인 태스크 확인
     const mainTaskSql = `
@@ -164,14 +164,14 @@ export async function GET(
       // 권한: admin/staff, 메인 담당자·요청자, 또는 이 메인 업무의 서브태스크 담당자(공동 업무)
       const isMainParty = task.assigned_to === decoded.id || task.assigned_by === decoded.id
       let isSubtaskAssignee = false
-      if (!isAdminOrStaff && !isMainParty) {
+      if (!isStaff && !isMainParty) {
         const subtaskAssign = await query(
           "SELECT 1 FROM task_subtasks WHERE task_id = ? AND assigned_to = ? LIMIT 1",
           [taskId, decoded.id]
         )
         isSubtaskAssignee = Array.isArray(subtaskAssign) && subtaskAssign.length > 0
       }
-      if (!isAdminOrStaff && !isMainParty && !isSubtaskAssignee) {
+      if (!isStaff && !isMainParty && !isSubtaskAssignee) {
         return NextResponse.json({ error: "권한이 없습니다" }, { status: 403 })
       }
 
@@ -271,7 +271,7 @@ export async function GET(
       const subtask = subtasks[0]
 
       // 권한 확인: admin/staff는 모든 subtask 조회 가능, 그 외는 자신의 subtask만
-      if (!isAdminOrStaff && subtask.assigned_to !== decoded.id && subtask.assigned_by !== decoded.id) {
+      if (!isStaff && subtask.assigned_to !== decoded.id && subtask.assigned_by !== decoded.id) {
         return NextResponse.json({ error: "권한이 없습니다" }, { status: 403 })
       }
 
@@ -413,11 +413,11 @@ export async function PATCH(
       [decoded.id]
     )
     const userRole = userRoleRes && userRoleRes.length > 0 ? userRoleRes[0].role : null
-    const isAdminOrStaff = userRole === "admin" || userRole === "staff"
+    const isStaff = userRole === "staff"
 
     // due_date는 admin/staff는 모든 업무 수정 가능, 그 외는 요청자·담당자만 수정 가능
     if (due_date !== undefined) {
-      if (!isAdminOrStaff) {
+      if (!isStaff) {
         const isAssigner = decoded.id === task.assigned_by
         const isAssignee = decoded.id === task.assigned_to
         if (!isAssigner && !isAssignee) {
@@ -428,8 +428,8 @@ export async function PATCH(
 
     // 담당자(assigned_to), staff/admin, 또는 요청자(assigned_by)만 메인 task 수정 가능
     // 요청자는 content, file_keys, due_date, title 만 수정 가능
-    const isRequesterOnly = decoded.id === task.assigned_by && decoded.id !== task.assigned_to && !isAdminOrStaff
-    const canEditAsAssigneeOrAdmin = task.assigned_to === decoded.id || isAdminOrStaff
+    const isRequesterOnly = decoded.id === task.assigned_by && decoded.id !== task.assigned_to && !isStaff
+    const canEditAsAssigneeOrAdmin = task.assigned_to === decoded.id || isStaff
     if (!canEditAsAssigneeOrAdmin && !isRequesterOnly) {
       return NextResponse.json({ error: "권한이 없습니다" }, { status: 403 })
     }
@@ -463,8 +463,8 @@ export async function PATCH(
       // 작업끝내기(completed): 요청자(assigned_by) 또는 admin/staff 가능 (admin = staff 동일 취급)
       if (status === 'completed') {
         const isAssigner = decoded.id === task.assigned_by
-        const isAdminOrStaff = userRole === 'admin' || userRole === 'staff'
-        if (!isAssigner && !isAdminOrStaff) {
+        const isStaff = userRole === 'staff'
+        if (!isAssigner && !isStaff) {
           return NextResponse.json(
             { error: "작업 끝내기는 요청자 또는 담당자(admin/staff)만 할 수 있습니다" },
             { status: 403 }
@@ -714,7 +714,7 @@ async function handleSubtaskUpdate(
     [userId]
   )
   const userRole = userRoleRes && userRoleRes.length > 0 ? userRoleRes[0].role : null
-  const isAdminOrStaff = userRole === "admin" || userRole === "staff"
+  const isStaff = userRole === "staff"
 
   // 메인 task 요청자(assigned_by) 확인 - 요청자는 서브태스크 요청자 내용(content) 수정 가능
   const parentTaskRes = await query(
@@ -726,7 +726,7 @@ async function handleSubtaskUpdate(
   const canEditAsAssignee = subtask.assigned_to === userId
   const canEditAsRequester = parentAssignedBy === userId
 
-  if (!canEditAsAssignee && !canEditAsRequester && !isAdminOrStaff) {
+  if (!canEditAsAssignee && !canEditAsRequester && !isStaff) {
     return NextResponse.json({ error: "권한이 없습니다" }, { status: 403 })
   }
 
@@ -887,7 +887,7 @@ export async function DELETE(
       [decoded.id]
     )
     const userRole = userRoleRes && userRoleRes.length > 0 ? userRoleRes[0].role : null
-    const isAdminOrStaff = userRole === "admin" || userRole === "staff"
+    const isStaff = userRole === "staff"
 
     // 먼저 메인 Task가 존재하는지 확인
     const taskResult = await query(
@@ -898,7 +898,7 @@ export async function DELETE(
 
     if (task) {
       // 권한 확인: admin/staff는 모든 task 삭제 가능, 그 외는 자신의 task만
-      if (!isAdminOrStaff && task.assigned_to !== decoded.id) {
+      if (!isStaff && task.assigned_to !== decoded.id) {
         return NextResponse.json({ error: "권한이 없습니다" }, { status: 403 })
       }
     } else {
@@ -914,7 +914,7 @@ export async function DELETE(
       }
 
       // 서브태스크 권한 확인
-      if (!isAdminOrStaff && subtask.assigned_to !== decoded.id) {
+      if (!isStaff && subtask.assigned_to !== decoded.id) {
         return NextResponse.json({ error: "권한이 없습니다" }, { status: 403 })
       }
 

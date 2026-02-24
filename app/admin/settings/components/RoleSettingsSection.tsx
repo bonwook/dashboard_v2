@@ -15,7 +15,7 @@ import { Badge } from "@/components/ui/badge"
 import { Users, Loader2 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 
-type Role = "admin" | "staff" | "client"
+type Role = "staff" | "client"
 
 interface Profile {
   id: string
@@ -26,7 +26,6 @@ interface Profile {
 }
 
 const ROLE_LABELS: Record<Role, string> = {
-  admin: "Admin",
   staff: "Staff",
   client: "Client",
 }
@@ -38,7 +37,6 @@ export function RoleSettingsSection() {
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null)
   const { toast } = useToast()
 
-  const isAdmin = currentUserRole === "admin"
 
   const loadProfiles = async () => {
     try {
@@ -111,7 +109,6 @@ export function RoleSettingsSection() {
   const getRoleBadge = (role: string) => {
     const r = role as Role
     const config: Record<Role, { label: string; className: string }> = {
-      admin: { label: "Admin", className: "bg-purple-500/10 text-purple-500 border-purple-500/20" },
       staff: { label: "Staff", className: "bg-blue-500/10 text-blue-500 border-blue-500/20" },
       client: { label: "Client", className: "bg-green-500/10 text-green-500 border-green-500/20" },
     }
@@ -119,7 +116,7 @@ export function RoleSettingsSection() {
     return <Badge className={className}>{label}</Badge>
   }
 
-  const allowedRoles: Role[] = isAdmin ? ["admin", "staff", "client"] : ["staff", "client"]
+  const allowedRoles: Role[] = ["staff", "client"]
 
   if (isLoading) {
     return (
@@ -139,7 +136,7 @@ export function RoleSettingsSection() {
           사용자 권한 관리
         </CardTitle>
         <CardDescription>
-          Client ↔ Staff 역할 변경. Admin 역할 변경은 관리자(Admin)만 가능합니다.
+          Client ↔ Staff 역할 변경 (Staff만 다른 사용자 역할 변경 가능).
         </CardDescription>
       </CardHeader>
       <CardContent>
