@@ -30,6 +30,8 @@ export interface TaskRegistrationFormProps {
   setSelectedFiles: (s: Set<string>) => void
   children?: React.ReactNode
   showBackButton?: boolean
+  /** S3 상세 등에서 미리보기 카드에 넣을 내용 (있으면 placeholder 대신 표시) */
+  previewContent?: React.ReactNode
 }
 
 export function TaskRegistrationForm({
@@ -41,6 +43,7 @@ export function TaskRegistrationForm({
   setSelectedFiles,
   children,
   showBackButton = false,
+  previewContent,
 }: TaskRegistrationFormProps) {
   const { toast } = useToast()
   const [assignForm, setAssignForm] = useState({
@@ -558,7 +561,7 @@ export function TaskRegistrationForm({
                     <CardTitle className="text-lg">미리보기</CardTitle>
                   </CardHeader>
                   <CardContent className="overflow-y-auto">
-                    <p className="text-center text-muted-foreground py-8">파일을 선택하면 미리보기가 표시됩니다</p>
+                    {previewContent ?? <p className="text-center text-muted-foreground py-8">파일을 선택하면 미리보기가 표시됩니다</p>}
                   </CardContent>
                 </Card>
               </div>
@@ -583,7 +586,7 @@ export function TaskRegistrationForm({
                   <CardTitle className="text-lg">미리보기</CardTitle>
                 </CardHeader>
                 <CardContent className="overflow-y-auto">
-                  <p className="text-center text-muted-foreground py-8">파일을 선택하면 미리보기가 표시됩니다</p>
+                  {previewContent ?? <p className="text-center text-muted-foreground py-8">파일을 선택하면 미리보기가 표시됩니다</p>}
                 </CardContent>
               </Card>
             </div>

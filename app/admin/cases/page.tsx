@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Progress } from "@/components/ui/progress"
-import { Activity, RefreshCw, Search, Trash2, Plus } from "lucide-react"
+import { Activity, RefreshCw, Search, Trash2, Plus, CheckCircle2 } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { Fragment } from "react"
@@ -484,30 +484,6 @@ export default function WorklistPage() {
                 </div>
               ) : (
                 <>
-                  {selectedRowIds.size > 0 && (
-                    <div className="flex items-center justify-between gap-4 py-2 px-1 mb-2 rounded-md bg-muted/50 border">
-                      <span className="text-sm text-muted-foreground">선택 {selectedRowIds.size}건</span>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="default"
-                          size="sm"
-                          onClick={() => {
-                            // TODO: 일괄 할당 모달/API 연동
-                            toast({ title: "할당", description: "선택한 항목에 담당자를 지정할 수 있습니다. (기능 연동 예정)" })
-                          }}
-                        >
-                          할당
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setSelectedRowIds(new Set())}
-                        >
-                          선택 해제
-                        </Button>
-                      </div>
-                    </div>
-                  )}
                 <div className="overflow-x-auto">
                   <Table className="w-full">
                     <TableHeader>
@@ -724,8 +700,8 @@ export default function WorklistPage() {
                       {/* 완료된 테스크: 맨 아래 */}
                       {completedEntries.length > 0 && (
                         <>
-                          <TableRow className="bg-muted/30 hover:bg-muted/30 [&>td]:bg-muted/30">
-                            <TableCell colSpan={10} className="font-medium text-muted-foreground py-2.5 text-center w-full min-w-0">
+                          <TableRow className="bg-slate-100/80 dark:bg-slate-800/50 hover:bg-slate-100/80 dark:hover:bg-slate-800/50 border-l-4 border-l-slate-400 dark:border-l-slate-500 [&>td]:bg-slate-100/80 dark:[&>td]:bg-slate-800/50">
+                            <TableCell colSpan={10} className="font-medium text-slate-600 dark:text-slate-400 py-2.5 text-center w-full min-w-0">
                               — 완료된 작업 ({completedEntries.length}건) —
                             </TableCell>
                           </TableRow>
@@ -735,10 +711,12 @@ export default function WorklistPage() {
                             return (
                               <TableRow
                                 key={task.id}
-                                className="cursor-pointer hover:bg-accent/50 opacity-90 border-l-4 border-l-border [&>td]:bg-background"
+                                className="cursor-pointer hover:bg-slate-100/80 dark:hover:bg-slate-800/40 border-l-4 border-l-slate-400 dark:border-l-slate-500 [&>td]:bg-slate-50/60 dark:[&>td]:bg-slate-800/30"
                                 onClick={() => router.push(`/admin/cases/${task.id}`)}
                               >
-                                <TableCell className="w-10 px-2 text-center text-muted-foreground">—</TableCell>
+                                <TableCell className="w-10 px-2 text-center">
+                                  <CheckCircle2 className="h-5 w-5 text-slate-500 dark:text-slate-400 mx-auto" aria-label="완료" />
+                                </TableCell>
                                 <TableCell className="font-medium text-center">{task.title}</TableCell>
                                 <TableCell className="text-center">
                                   <span className="text-muted-foreground">-</span>
@@ -776,6 +754,31 @@ export default function WorklistPage() {
               )}
             </CardContent>
           </Card>
+
+          {selectedRowIds.size > 0 && (
+            <div className="flex justify-center items-center gap-4 py-6">
+              <span className="text-sm text-muted-foreground">선택 {selectedRowIds.size}건</span>
+              <Button
+                variant="default"
+                size="lg"
+                className="cursor-pointer"
+                onClick={() => {
+                  // TODO: 일괄 요청 모달/API 연동
+                  toast({ title: "요청", description: "선택한 항목에 요청을 보낼 수 있습니다. (기능 연동 예정)" })
+                }}
+              >
+                요청
+              </Button>
+              <Button
+                variant="ghost"
+                size="lg"
+                className="cursor-pointer"
+                onClick={() => setSelectedRowIds(new Set())}
+              >
+                취소
+              </Button>
+            </div>
+          )}
 
     </div>
   )

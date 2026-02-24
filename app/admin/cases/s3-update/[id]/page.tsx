@@ -19,6 +19,7 @@ import {
   getDisplayPath,
 } from "@/app/admin/analytics/utils/fileUtils"
 import type { S3File } from "@/app/admin/analytics/types"
+import { FilePreviewSection } from "@/app/admin/analytics/components/FilePreviewSection"
 
 interface S3Update {
   id: number
@@ -61,6 +62,10 @@ export default function S3UpdateDetailPage({
     isDeleting,
     loadFiles,
     deleteSelectedItems,
+    handleViewFile,
+    previewData,
+    fileUrl,
+    isLoadingPreview,
   } = useFileManagement({
     user,
     toast,
@@ -253,6 +258,14 @@ export default function S3UpdateDetailPage({
               }}
               selectedFiles={selectedFiles}
               setSelectedFiles={setSelectedFiles}
+              previewContent={
+                <FilePreviewSection
+                  selectedFile={selectedFile}
+                  fileUrl={fileUrl}
+                  isLoadingPreview={isLoadingPreview}
+                  previewData={previewData && previewData.type !== "text" ? previewData : null}
+                />
+              }
             >
               <div className="flex flex-col flex-1 overflow-hidden gap-2">
                 <div className="flex items-center justify-end gap-2 shrink-0 flex-wrap">
@@ -290,7 +303,7 @@ export default function S3UpdateDetailPage({
                     <span className="hidden sm:inline ml-2">새로고침</span>
                   </Button>
                 </div>
-                <div className="overflow-x-auto overflow-y-auto border rounded-md flex-1 min-h-0" style={{ maxHeight: "400px" }}>
+                <div className="overflow-x-auto overflow-y-visible border rounded-md flex-1 min-h-0">
                   {isLoadingSessionFiles ? (
                     <p className="text-center text-muted-foreground py-8">로딩 중...</p>
                   ) : files.length === 0 ? (
@@ -354,8 +367,15 @@ export default function S3UpdateDetailPage({
                             )
                           }
                           return (
-                            <TableRow key={index} className="hover:bg-muted/50">
-                              <TableCell>
+                            <TableRow
+                              key={index}
+                              className="cursor-pointer hover:bg-muted/50"
+                              onClick={() => {
+                                handleToggleFile(file.key, !selectedFiles.has(file.key))
+                                handleViewFile(file)
+                              }}
+                            >
+                              <TableCell onClick={(e) => e.stopPropagation()}>
                                 <Checkbox
                                   checked={selectedFiles.has(file.key)}
                                   onCheckedChange={(c) => handleToggleFile(file.key, !!c)}
@@ -391,30 +411,29 @@ export default function S3UpdateDetailPage({
                     </Table>
                   )}
                 </div>
-                {selectedFiles.size > 0 && (
-                  <div className="space-y-1.5 shrink-0">
-                    <p className="text-xs font-medium text-muted-foreground">선택된 항목 ({selectedFiles.size}개)</p>
-                    <div className="text-xs text-muted-foreground border rounded-md p-2 max-h-[120px] overflow-y-auto space-y-1">
-                      {Array.from(selectedFiles).slice(0, 20).map((key) => {
-                        const displayName =
-                          key === s3Key
-                            ? s3Update?.file_name ?? key.split("/").pop() ?? key
-                            : allFiles.find((f) => f.key === key)?.fileName ?? key.split("/").pop() ?? key
-                        return (
-                          <div key={key} className="truncate" title={key}>
-                            {displayName}
-                          </div>
-                        )
-                      })}
-                      {selectedFiles.size > 20 && (
-                        <div className="text-muted-foreground/80">... 외 {selectedFiles.size - 20}개</div>
-                      )}
+                {(() => {
+                  const selectedExceptS3 = Array.from(selectedFiles).filter((key) => key !== s3Key)
+                  if (selectedExceptS3.length === 0) return null
+                  return (
+                    <div className="space-y-1.5 shrink-0 mt-2">
+                      <p className="text-xs font-medium text-muted-foreground">선택한 항목 ({selectedExceptS3.length}개)</p>
+                      <div className="text-xs text-muted-foreground border rounded-md p-2 max-h-[120px] overflow-y-auto space-y-1">
+                        {selectedExceptS3.slice(0, 50).map((key) => {
+                          const displayName =
+                            allFiles.find((f) => f.key === key)?.fileName ?? key.split("/").pop() ?? key
+                          return (
+                            <div key={key} className="truncate" title={key}>
+                              {displayName}
+                            </div>
+                          )
+                        })}
+                        {selectedExceptS3.length > 50 && (
+                          <div className="text-muted-foreground/80">... 외 {selectedExceptS3.length - 50}개</div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                )}
-                <p className="text-xs text-muted-foreground mt-1">
-                  위 목록은 현재 로그인한 세션의 S3 버킷입니다. 상단 버킷 정보의 파일은 다운로드 버튼으로 받으세요.
-                </p>
+                  )
+                })()}
               </div>
             </TaskRegistrationForm>
           </CardContent>

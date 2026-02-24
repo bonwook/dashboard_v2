@@ -2,14 +2,12 @@
 
 import { useState, useCallback, useEffect } from "react"
 import Link from "next/link"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ReportFormSection } from "../components/ReportFormSection"
-import { ExportSection } from "../components/ExportSection"
-import { reportFormSections, getFieldLabelById } from "../reportFormFields"
+import { reportFormSections } from "../reportFormFields"
 import type { FormValues } from "../types"
-import { FileText, FileDown, ArrowLeft, Loader2, Save } from "lucide-react"
+import { ArrowLeft, Loader2, Save } from "lucide-react"
 import { useParams } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
 
@@ -106,11 +104,6 @@ export default function ReportFormPage() {
     }
   }
 
-  const selectedIdsOrdered = reportFormSections.flatMap((s) =>
-    s.fields.filter((f) => selectedIds.has(f.id)).map((f) => f.id)
-  )
-  const selectedLabels = selectedIdsOrdered.map(getFieldLabelById)
-
   if (loading) {
     return (
       <div className="mx-auto max-w-6xl p-6 flex items-center justify-center min-h-[200px]">
@@ -121,16 +114,12 @@ export default function ReportFormPage() {
 
   return (
     <div className="mx-auto max-w-6xl p-6">
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-4">
         <Button variant="ghost" size="sm" asChild>
           <Link href="/admin/reports">
             <ArrowLeft className="mr-2 h-4 w-4" />
             목록으로
           </Link>
-        </Button>
-        <Button size="sm" onClick={handleSave} disabled={saving}>
-          {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-          저장
         </Button>
       </div>
 
@@ -150,37 +139,20 @@ export default function ReportFormPage() {
         </p>
       </div>
 
-      <Tabs defaultValue="form" className="space-y-4">
-        <TabsList className="grid w-full max-w-md grid-cols-2 h-9">
-          <TabsTrigger value="form" className="flex items-center gap-2">
-            <FileText className="h-4 w-4" />
-            리포트 폼
-          </TabsTrigger>
-          <TabsTrigger value="export" className="flex items-center gap-2">
-            <FileDown className="h-4 w-4" />
-            내보내기
-          </TabsTrigger>
-        </TabsList>
+      <ReportFormSection
+        selectedIds={selectedIds}
+        onSelectChange={onSelectChange}
+        formValues={formValues}
+        onValueChange={onValueChange}
+        onSelectAllInSection={onSelectAllInSection}
+      />
 
-        <TabsContent value="form" className="mt-3">
-          <ReportFormSection
-            selectedIds={selectedIds}
-            onSelectChange={onSelectChange}
-            formValues={formValues}
-            onValueChange={onValueChange}
-            onSelectAllInSection={onSelectAllInSection}
-          />
-        </TabsContent>
-
-        <TabsContent value="export" className="mt-3">
-          <ExportSection
-            selectedIds={selectedIdsOrdered}
-            selectedLabels={selectedLabels}
-            formValues={formValues}
-            importedData={null}
-          />
-        </TabsContent>
-      </Tabs>
+      <div className="mt-8 flex justify-center pb-6">
+        <Button size="default" onClick={handleSave} disabled={saving}>
+          {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+          저장
+        </Button>
+      </div>
     </div>
   )
 }
