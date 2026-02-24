@@ -114,8 +114,6 @@ export default function ClientAnalyticsPage() {
   const [extractPasswordFile, setExtractPasswordFile] = useState<S3File | null>(null)
   const [extractPasswordValue, setExtractPasswordValue] = useState("")
 
-  const [isBulkDeleteDialogOpen, setIsBulkDeleteDialogOpen] = useState(false)
-
   const { toast } = useToast()
   
   // Editor hook
@@ -147,7 +145,6 @@ export default function ClientAnalyticsPage() {
     cancelExtract,
     confirmDeleteFile,
     cancelDelete,
-    deleteSelectedItems,
     handleDownloadFile,
     handleDownloadZip,
   } = useFileManagement({
@@ -1169,18 +1166,6 @@ export default function ClientAnalyticsPage() {
                         <CardTitle className="text-lg">파일 목록</CardTitle>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
-                        {selectedFiles.size > 0 && (
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            className="shrink-0"
-                            disabled={isDeleting}
-                            onClick={() => setIsBulkDeleteDialogOpen(true)}
-                          >
-                            <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
-                            <span className="hidden sm:inline ml-2">선택 삭제</span>
-                          </Button>
-                        )}
                         <Button 
                           onClick={() => {
                             setSelectedFile(null)
@@ -1660,26 +1645,31 @@ export default function ClientAnalyticsPage() {
               </div>
               {selectedFiles.size > 0 && (
                 <div className="mt-5 space-y-2 min-w-0 w-full">
-                  <Label>선택된 파일/폴더 ({selectedFiles.size}개)</Label>
+                  <Label>선택된 파일/폴더 ({selectedFiles.size}개) — 경로로 이동해 체크 해제 가능</Label>
                   <div className="text-sm text-muted-foreground min-w-0 w-full overflow-y-auto overflow-x-hidden border rounded-md p-3 max-h-[20vh]">
                     {(() => {
                       const selectedItems = getSelectedFilesForAssignment()
                       return selectedItems.length > 0 ? (
-                        <div className="space-y-1 min-w-0">
+                        <div className="space-y-2 min-w-0">
                           {selectedItems.slice(0, 5).map((item, index) => (
-                            <div key={index} className="flex items-center gap-2 min-w-0 w-full">
-                              {item.fileType === 'folder' ? (
-                                <>
-                                  <span className="shrink-0 text-lg">📁</span>
-                                  <span className="truncate min-w-0 flex-1">{item.fileName || (typeof item.key === 'string' ? item.key.split("/").pop() : 'unknown')}</span>
-                                  <span className="shrink-0 text-xs text-muted-foreground">(폴더)</span>
-                                </>
-                              ) : (
-                                <>
-                                  <span className="shrink-0 text-sm">📄</span>
-                                  <span className="truncate min-w-0 flex-1">{item.fileName || (typeof item.key === 'string' ? item.key.split("/").pop() : 'unknown')}</span>
-                                </>
-                              )}
+                            <div key={index} className="min-w-0 w-full">
+                              <div className="flex items-center gap-2 min-w-0 w-full">
+                                {item.fileType === 'folder' ? (
+                                  <>
+                                    <span className="shrink-0 text-lg">📁</span>
+                                    <span className="truncate min-w-0 flex-1 font-medium text-foreground/90">{item.fileName || (typeof item.key === 'string' ? item.key.split("/").pop() : 'unknown')}</span>
+                                    <span className="shrink-0 text-xs text-muted-foreground">(폴더)</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <span className="shrink-0 text-sm">📄</span>
+                                    <span className="truncate min-w-0 flex-1 font-medium text-foreground/90">{item.fileName || (typeof item.key === 'string' ? item.key.split("/").pop() : 'unknown')}</span>
+                                  </>
+                                )}
+                              </div>
+                              {getDisplayPath(item.key) ? (
+                                <div className="truncate text-xs text-muted-foreground/80 pl-6" title={getDisplayPath(item.key)}>{getDisplayPath(item.key)}</div>
+                              ) : null}
                             </div>
                           ))}
                           {selectedItems.length > 5 && (
@@ -1861,34 +1851,6 @@ export default function ClientAnalyticsPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-
-        {/* 다중 선택 삭제 확인 다이얼로그 */}
-        <AlertDialog open={isBulkDeleteDialogOpen} onOpenChange={setIsBulkDeleteDialogOpen}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>선택 항목 삭제</AlertDialogTitle>
-              <AlertDialogDescription>
-                선택한 {getSelectedFilesForAssignment().length}개 파일/폴더를 삭제하시겠습니까? 폴더는 그 안의 모든 파일이 함께 삭제되며, 이 작업은 되돌릴 수 없습니다.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel disabled={isDeleting}>취소</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={async () => {
-                  const items = getSelectedFilesForAssignment()
-                  if (items.length > 0) {
-                    setIsBulkDeleteDialogOpen(false)
-                    await deleteSelectedItems(items)
-                  }
-                }}
-                disabled={isDeleting}
-                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              >
-                {isDeleting ? `삭제 중... ${deleteProgress}%` : "삭제"}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
 
         {/* ZIP 비밀번호 입력 다이얼로그 */}
         <Dialog open={extractPasswordDialogOpen} onOpenChange={(open) => {

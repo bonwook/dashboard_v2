@@ -1,10 +1,10 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { ArrowLeft, Loader2, RefreshCw, Trash2 } from "lucide-react"
+import { ArrowLeft, Archive, Download, Loader2, RefreshCw, Trash2 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -20,6 +20,10 @@ import {
 } from "@/app/admin/analytics/utils/fileUtils"
 import type { S3File } from "@/app/admin/analytics/types"
 import { FilePreviewSection } from "@/app/admin/analytics/components/FilePreviewSection"
+import { Progress } from "@/components/ui/progress"
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
 
 interface S3Update {
   id: number
@@ -53,16 +57,35 @@ export default function S3UpdateDetailPage({
   const [files, setFiles] = useState<S3File[]>([])
   const [currentPath, setCurrentPath] = useState<string>("")
   const [selectedFile, setSelectedFile] = useState<S3File | null>(null)
-  const [isBulkDeleteDialogOpen, setIsBulkDeleteDialogOpen] = useState(false)
+  const [extractPasswordDialogOpen, setExtractPasswordDialogOpen] = useState(false)
+  const [extractPasswordFile, setExtractPasswordFile] = useState<S3File | null>(null)
+  const [extractPasswordValue, setExtractPasswordValue] = useState("")
+  const [fileListHeight, setFileListHeight] = useState(400)
+  const [isResizing, setIsResizing] = useState(false)
+  const resizeStartY = useRef(0)
+  const resizeStartHeight = useRef(400)
 
   const s3Key = s3Update?.s3_key ?? ""
 
   const {
     isLoading: isLoadingSessionFiles,
     isDeleting,
+    deleteProgress,
+    isExtracting,
+    extractProgress,
+    extractInfo,
+    cancelExtract,
     loadFiles,
-    deleteSelectedItems,
     handleViewFile,
+    handleDeleteFile,
+    handleDownloadFile,
+    handleExtractZip,
+    confirmDeleteFile,
+    cancelDelete,
+    isDeleteDialogOpen,
+    setIsDeleteDialogOpen,
+    fileToDelete,
+    setFileToDelete,
     previewData,
     fileUrl,
     isLoadingPreview,
@@ -79,7 +102,7 @@ export default function S3UpdateDetailPage({
     setSelectedFiles,
   })
 
-  /** 업무 요청 페이지와 동일: 선택된 파일/폴더 목록 (세션 스토리지 항목만, presigned s3_key 제외) */
+  /** 업무 요청 페이지와 동일: 선택된 파일/폴더 목록 (세션 스토리지 항목만) */
   const getSelectedFilesForAssignment = useCallback((): S3File[] => {
     const uniqueItems = new Map<string, S3File>()
     ;[...allFiles, ...files].forEach((item) => {
@@ -203,6 +226,22 @@ export default function S3UpdateDetailPage({
     }
   }
 
+  useEffect(() => {
+    if (!isResizing) return
+    const onMove = (e: MouseEvent) => {
+      const delta = e.clientY - resizeStartY.current
+      const next = Math.min(800, Math.max(200, resizeStartHeight.current + delta))
+      setFileListHeight(next)
+    }
+    const onUp = () => setIsResizing(false)
+    window.addEventListener("mousemove", onMove)
+    window.addEventListener("mouseup", onUp)
+    return () => {
+      window.removeEventListener("mousemove", onMove)
+      window.removeEventListener("mouseup", onUp)
+    }
+  }, [isResizing])
+
   if (isLoading || !s3Update) {
     return (
       <div className="mx-auto max-w-7xl p-6">
@@ -246,7 +285,7 @@ export default function S3UpdateDetailPage({
       ) : (
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">업무 할당</CardTitle>
+            <CardTitle className="text-lg">업무 요청</CardTitle>
           </CardHeader>
           <CardContent>
             <TaskRegistrationForm
@@ -264,28 +303,12 @@ export default function S3UpdateDetailPage({
                   fileUrl={fileUrl}
                   isLoadingPreview={isLoadingPreview}
                   previewData={previewData && previewData.type !== "text" ? previewData : null}
+                  embedded
                 />
               }
             >
               <div className="flex flex-col flex-1 overflow-hidden gap-2">
                 <div className="flex items-center justify-end gap-2 shrink-0 flex-wrap">
-                  {selectedFiles.size > 0 && getSelectedFilesForAssignment().length > 0 && (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="destructive"
-                      className="shrink-0"
-                      disabled={isDeleting}
-                      onClick={() => setIsBulkDeleteDialogOpen(true)}
-                    >
-                      {isDeleting ? (
-                        <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 animate-spin" />
-                      ) : (
-                        <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
-                      )}
-                      <span className="hidden sm:inline ml-2">선택 삭제</span>
-                    </Button>
-                  )}
                   <Button
                     type="button"
                     size="sm"
@@ -303,7 +326,8 @@ export default function S3UpdateDetailPage({
                     <span className="hidden sm:inline ml-2">새로고침</span>
                   </Button>
                 </div>
-                <div className="overflow-x-auto overflow-y-visible border rounded-md flex-1 min-h-0">
+                <div className="flex flex-col shrink-0" style={{ height: fileListHeight }}>
+                  <div className="overflow-x-auto overflow-y-auto border rounded-t-md min-h-0 flex-1">
                   {isLoadingSessionFiles ? (
                     <p className="text-center text-muted-foreground py-8">로딩 중...</p>
                   ) : files.length === 0 ? (
@@ -327,12 +351,13 @@ export default function S3UpdateDetailPage({
                           <TableHead className="w-[15%] bg-background">타입</TableHead>
                           <TableHead className="w-[15%] bg-background">크기</TableHead>
                           <TableHead className="w-[15%] bg-background">업로드일</TableHead>
+                          <TableHead className="w-[15%] bg-background">작업</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {currentPath && (
                           <TableRow className="cursor-pointer hover:bg-muted/50 bg-muted/30" onClick={handleGoUp}>
-                            <TableCell colSpan={5} className="font-medium">
+                            <TableCell colSpan={6} className="font-medium">
                               <span className="flex items-center gap-2">
                                 <ArrowLeft className="h-4 w-4" />
                                 뒤로가기
@@ -363,9 +388,21 @@ export default function S3UpdateDetailPage({
                                 <TableCell className="text-xs">폴더</TableCell>
                                 <TableCell>-</TableCell>
                                 <TableCell>-</TableCell>
+                                <TableCell onClick={(e) => e.stopPropagation()}>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleDeleteFile(file)}
+                                    title="폴더 삭제"
+                                    className="text-destructive hover:text-destructive"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </TableCell>
                               </TableRow>
                             )
                           }
+                          const isZip = (file.fileName?.toLowerCase().endsWith(".zip") || file.fileName?.toLowerCase().endsWith(".7z") || file.key?.toLowerCase().endsWith(".zip") || file.key?.toLowerCase().endsWith(".7z")) ?? false
                           return (
                             <TableRow
                               key={index}
@@ -404,26 +441,122 @@ export default function S3UpdateDetailPage({
                                   minute: "2-digit",
                                 })}
                               </TableCell>
+                              <TableCell onClick={(e) => e.stopPropagation()}>
+                                <div className="flex items-center gap-1">
+                                  {isZip && (
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      title="압축 해제"
+                                      disabled={isExtracting}
+                                      onClick={async () => {
+                                        try {
+                                          await handleExtractZip(file)
+                                        } catch (err: unknown) {
+                                          const code = (err as { code?: string })?.code
+                                          if (code === "ZIP_MISSING_PASSWORD") {
+                                            setExtractPasswordFile(file)
+                                            setExtractPasswordValue("")
+                                            setExtractPasswordDialogOpen(true)
+                                          }
+                                        }
+                                      }}
+                                    >
+                                      <Archive className="h-4 w-4" />
+                                    </Button>
+                                  )}
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleDownloadFile(file)}
+                                    title="다운로드"
+                                  >
+                                    <Download className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleDeleteFile(file)}
+                                    title="삭제"
+                                    className="text-destructive hover:text-destructive"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              </TableCell>
                             </TableRow>
                           )
                         })}
                       </TableBody>
                     </Table>
                   )}
+                  </div>
+                  <div
+                    role="separator"
+                    aria-label="파일 목록 높이 조절"
+                    className="h-2 shrink-0 border border-t-0 rounded-b-md bg-muted/50 cursor-ns-resize flex items-center justify-center hover:bg-muted select-none"
+                    onMouseDown={(e) => {
+                      e.preventDefault()
+                      setIsResizing(true)
+                      resizeStartY.current = e.clientY
+                      resizeStartHeight.current = fileListHeight
+                    }}
+                  >
+                    <span className="text-muted-foreground text-xs">⋮</span>
+                  </div>
                 </div>
+                {isExtracting && (
+                  <div className="mt-4 p-4 border rounded-lg bg-muted/50 shrink-0 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                        <span className="text-sm font-medium">zip 파일 압축 해제 중...</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium">{extractProgress}%</span>
+                        <Button variant="outline" size="sm" onClick={cancelExtract}>취소</Button>
+                      </div>
+                    </div>
+                    <Progress value={extractProgress} />
+                    {extractInfo && (
+                      <div className="text-xs text-muted-foreground space-y-1">
+                        <div className="flex justify-between">
+                          <span>파일 진행:</span>
+                          <span className="font-medium">{extractInfo.extractedCount} / {extractInfo.totalFiles}</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {isDeleting && deleteProgress > 0 && (
+                  <div className="mt-4 p-4 border rounded-lg bg-muted/50 shrink-0 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                        <span className="text-sm font-medium">파일 삭제 중...</span>
+                      </div>
+                      <span className="text-sm font-medium">{deleteProgress}%</span>
+                    </div>
+                    <Progress value={deleteProgress} />
+                  </div>
+                )}
                 {(() => {
                   const selectedExceptS3 = Array.from(selectedFiles).filter((key) => key !== s3Key)
                   if (selectedExceptS3.length === 0) return null
                   return (
                     <div className="space-y-1.5 shrink-0 mt-2">
-                      <p className="text-xs font-medium text-muted-foreground">선택한 항목 ({selectedExceptS3.length}개)</p>
+                      <p className="text-xs font-medium text-muted-foreground">선택한 항목 ({selectedExceptS3.length}개) — 경로로 이동해 체크 해제 가능</p>
                       <div className="text-xs text-muted-foreground border rounded-md p-2 max-h-[120px] overflow-y-auto space-y-1">
                         {selectedExceptS3.slice(0, 50).map((key) => {
                           const displayName =
                             allFiles.find((f) => f.key === key)?.fileName ?? key.split("/").pop() ?? key
+                          const displayPath = getDisplayPath(key)
                           return (
-                            <div key={key} className="truncate" title={key}>
-                              {displayName}
+                            <div key={key} className="truncate" title={displayPath || displayName}>
+                              <span className="font-medium text-foreground/90">{displayName}</span>
+                              {displayPath ? (
+                                <span className="block truncate text-muted-foreground/80" title={displayPath}>{displayPath}</span>
+                              ) : null}
                             </div>
                           )
                         })}
@@ -440,22 +573,18 @@ export default function S3UpdateDetailPage({
         </Card>
       )}
 
-      <AlertDialog open={isBulkDeleteDialogOpen} onOpenChange={setIsBulkDeleteDialogOpen}>
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>선택 항목 삭제</AlertDialogTitle>
+            <AlertDialogTitle>파일 삭제</AlertDialogTitle>
             <AlertDialogDescription>
-              선택한 {getSelectedFilesForAssignment().length}개 파일/폴더를 삭제하시겠습니까? 폴더는 그 안의 모든 파일이 함께 삭제되며, 이 작업은 되돌릴 수 없습니다.
+              {fileToDelete?.fileName || fileToDelete?.key?.split("/").pop() || "이 항목"}을(를) 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogCancel onClick={cancelDelete}>취소</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => {
-                const items = getSelectedFilesForAssignment()
-                deleteSelectedItems(items)
-                setIsBulkDeleteDialogOpen(false)
-              }}
+              onClick={() => confirmDeleteFile()}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               삭제
@@ -463,6 +592,42 @@ export default function S3UpdateDetailPage({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={extractPasswordDialogOpen} onOpenChange={setExtractPasswordDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>압축 해제 비밀번호</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="extract-password">비밀번호</Label>
+            <Input
+              id="extract-password"
+              type="password"
+              value={extractPasswordValue}
+              onChange={(e) => setExtractPasswordValue(e.target.value)}
+              placeholder="zip 비밀번호 입력"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setExtractPasswordDialogOpen(false)}>취소</Button>
+            <Button
+              onClick={async () => {
+                if (!extractPasswordFile) return
+                try {
+                  await handleExtractZip(extractPasswordFile, extractPasswordValue)
+                  setExtractPasswordDialogOpen(false)
+                  setExtractPasswordFile(null)
+                  setExtractPasswordValue("")
+                } catch {
+                  toast({ title: "압축 해제 실패", description: "비밀번호를 확인해 주세요.", variant: "destructive" })
+                }
+              }}
+            >
+              압축 해제
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

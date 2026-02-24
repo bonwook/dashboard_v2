@@ -13,6 +13,8 @@ interface FilePreviewSectionProps {
   fileUrl: string | null
   isLoadingPreview: boolean
   previewData: ExcelPreview | DicomPreview | NiftiPreview | null
+  /** true면 카드/제목 없이 내용만 렌더 (상위 미리보기 카드 안에 넣을 때 사용) */
+  embedded?: boolean
 }
 
 export function FilePreviewSection({
@@ -20,14 +22,9 @@ export function FilePreviewSection({
   fileUrl,
   isLoadingPreview,
   previewData,
+  embedded = false,
 }: FilePreviewSectionProps) {
-  return (
-    <Card className="flex-1 min-w-0 max-w-full">
-      <CardHeader>
-        <CardTitle>파일 미리보기</CardTitle>
-      </CardHeader>
-      <CardContent>
-        {selectedFile ? (
+  const content = selectedFile ? (
           <div className="space-y-4 min-w-0 max-w-full">
             <div className="flex flex-col gap-2">
               <div className="flex items-center gap-2">
@@ -130,9 +127,9 @@ export function FilePreviewSection({
                     <div className="space-y-2 text-sm">
                       {previewData.metadata && Object.keys(previewData.metadata).length > 0 ? (
                         Object.entries(previewData.metadata).map(([key, value]) => (
-                          <div key={key} className="flex items-start gap-2 border-b pb-2">
-                            <span className="font-medium text-muted-foreground min-w-[200px]">{key}:</span>
-                            <span className="flex-1 wrap-break-word">{String(value)}</span>
+                          <div key={key} className="flex items-start gap-1.5 border-b pb-2">
+                            <span className="font-medium text-muted-foreground shrink-0">{key}:</span>
+                            <span className="flex-1 min-w-0 break-words">{String(value)}</span>
                           </div>
                         ))
                       ) : (
@@ -155,9 +152,9 @@ export function FilePreviewSection({
                             displayValue = JSON.stringify(value, null, 2)
                           }
                           return (
-                            <div key={key} className="flex items-start gap-2 border-b pb-2">
-                              <span className="font-medium text-muted-foreground min-w-[200px]">{key}:</span>
-                              <span className="flex-1 wrap-break-word font-mono text-xs">{String(displayValue)}</span>
+                            <div key={key} className="flex items-start gap-1.5 border-b pb-2">
+                              <span className="font-medium text-muted-foreground shrink-0">{key}:</span>
+                              <span className="flex-1 min-w-0 break-words font-mono text-xs">{String(displayValue)}</span>
                             </div>
                           )
                         })
@@ -178,7 +175,17 @@ export function FilePreviewSection({
           <div className="flex items-center justify-center h-full text-muted-foreground">
             <p className="text-sm">파일을 선택하면 미리보기가 표시됩니다</p>
           </div>
-        )}
+        )
+
+  if (embedded) return <div className="min-w-0 max-w-full">{content}</div>
+
+  return (
+    <Card className="flex-1 min-w-0 max-w-full">
+      <CardHeader>
+        <CardTitle>파일 미리보기</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {content}
       </CardContent>
     </Card>
   )

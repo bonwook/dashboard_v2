@@ -129,9 +129,9 @@ export function S3BucketInfoCard({ s3Update, compact = false }: S3BucketInfoCard
               <div className="text-xs text-muted-foreground mt-2 space-y-0.5">
                 {summary && <div className="break-words">{summary}</div>}
                 {entries.length > 0 && (
-                  <dl className="grid grid-cols-2 gap-x-4 gap-y-0.5">
+                  <dl className="grid grid-cols-2 gap-x-2 gap-y-0.5">
                     {entries.slice(0, 10).map(([key, val], i) => (
-                      <span key={i} className="flex gap-2 items-baseline min-w-0">
+                      <span key={i} className="flex gap-1.5 items-baseline min-w-0">
                         <dt className="font-medium text-foreground/80 shrink-0">{key}:</dt>
                         <dd className="break-words min-w-0 truncate" title={val}>{val}</dd>
                       </span>
@@ -195,10 +195,10 @@ export function S3BucketInfoCard({ s3Update, compact = false }: S3BucketInfoCard
               <div className="text-xs font-medium text-muted-foreground">Study/Series 메타데이터</div>
               {summary && <div className="break-words text-muted-foreground">{summary}</div>}
               {entries.length > 0 && (
-                <dl className="grid grid-cols-2 gap-x-6 gap-y-1 text-muted-foreground">
+                <dl className="grid grid-cols-2 gap-x-2 gap-y-1 text-muted-foreground">
                   {entries.map(([key, val], i) => (
-                    <span key={i} className="flex gap-2 items-baseline min-w-0">
-                      <dt className="font-medium text-foreground/80 shrink-0 min-w-[8rem]">{key}:</dt>
+                    <span key={i} className="flex gap-1.5 items-baseline min-w-0">
+                      <dt className="font-medium text-foreground/80 shrink-0">{key}:</dt>
                       <dd className="break-words min-w-0" title={val}>{val}</dd>
                     </span>
                   ))}

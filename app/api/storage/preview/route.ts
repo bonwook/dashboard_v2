@@ -520,67 +520,43 @@ export async function GET(request: NextRequest) {
         message: "PDF 파일은 미리보기 URL을 사용하세요",
       })
     } else if (isNIFTI) {
-      // NIFTI 파일 처리 - 기본 정보만 반환
+      // NIFTI 파일 처리 — 레포지토리와 동일하게 헤더(태그) 값을 문자열로 반환, 3D 뷰어 안내 제거
       try {
-        const niftiData: {
-          type: string;
-          metadata: {
-            fileSize: number;
-            fileName: string;
-            fileExtension: string;
-            note: string;
-            isValidNifti?: boolean;
-            dimensions?: number[];
-            datatype?: number;
-            pixelDimensions?: number[];
-          };
-        } = {
-          type: "nifti",
-          metadata: {
-            fileSize: buffer.length,
-            fileName: key.split('/').pop() || key,
-            fileExtension: fileExtension || 'unknown',
-            note: "NIFTI 파일은 3D 뷰어에서 확인하세요",
-          },
+        const niftiMetadata: Record<string, string | number | number[] | boolean> = {
+          fileSize: buffer.length,
+          fileName: key.split('/').pop() || key,
+          fileExtension: fileExtension || 'unknown',
         }
 
-        // NIFTI 헤더 기본 정보 추출 시도 (옵션)
-        // NIFTI 파일은 바이너리 형식이므로 간단한 헤더 정보만 추출
+        // NIFTI 헤더 기본 정보 추출 (NIFTI-1 헤더 348바이트)
         if (buffer.length >= 348) {
-          // NIFTI-1 헤더는 최소 348바이트
           try {
-            // sizeof_hdr (4 bytes) - 헤더 크기
             const sizeof_hdr = buffer.readUInt32LE(0)
             if (sizeof_hdr === 348) {
-              niftiData.metadata.isValidNifti = true
-              // dim[0] (2 bytes) - 차원 수
+              niftiMetadata.isValidNifti = true
               const dim0 = buffer.readUInt16LE(40)
-              // dim[1-7] (각 2 bytes) - 각 차원의 크기
               const dims: number[] = []
               for (let i = 0; i < Math.min(dim0, 7); i++) {
                 dims.push(buffer.readUInt16LE(42 + i * 2))
               }
               if (dims.length > 0) {
-                niftiData.metadata.dimensions = dims
+                niftiMetadata.dimensions = dims
               }
-              // datatype (2 bytes)
-              const datatype = buffer.readUInt16LE(70)
-              niftiData.metadata.datatype = datatype
-              // pixdim[1-7] (각 4 bytes) - 각 차원의 픽셀 크기
+              niftiMetadata.datatype = buffer.readUInt16LE(70)
               const pixdims: number[] = []
               for (let i = 0; i < Math.min(dim0, 7); i++) {
                 pixdims.push(buffer.readFloatLE(76 + i * 4))
               }
               if (pixdims.length > 0) {
-                niftiData.metadata.pixelDimensions = pixdims
+                niftiMetadata.pixelDimensions = pixdims
               }
             }
           } catch (headerError) {
-            // 헤더 파싱 실패해도 기본 정보는 반환
             console.warn("[Preview] NIFTI 헤더 파싱 중 오류:", headerError)
           }
         }
 
+        const niftiData = { type: "nifti" as const, metadata: niftiMetadata }
         return NextResponse.json(niftiData)
       } catch (error) {
         console.error("[Preview] Error processing NIFTI:", error)
