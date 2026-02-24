@@ -13,12 +13,27 @@ export interface S3BucketInfoCardProps {
     file_name: string
     bucket_name?: string | null
     file_size?: number | null
+    metadata?: Record<string, unknown> | string | null
     upload_time?: string | null
     created_at: string
     s3_key: string
   }
   /** 컴팩트 레이아웃 (다이얼로그/블록용) */
   compact?: boolean
+}
+
+const PII_KEYS = ["Patient Name", "PatientID", "PatientName", "Patient Birth Date"]
+
+function formatMetadataForDisplay(metadata: S3BucketInfoCardProps["s3Update"]["metadata"]): { summary?: string; entries: string[] } {
+  if (metadata == null) return { entries: [] }
+  const obj = typeof metadata === "string" ? (() => { try { return JSON.parse(metadata) } catch { return null } })() : metadata
+  if (!obj || typeof obj !== "object") return { entries: [] }
+  const rec = obj as Record<string, unknown>
+  const summary = typeof rec.summary === "string" && rec.summary.trim() ? rec.summary.trim() : undefined
+  const entries = Object.entries(rec)
+    .filter(([k]) => k !== "summary" && !PII_KEYS.includes(k) && rec[k] != null && String(rec[k]).trim() !== "")
+    .map(([, v]) => (Array.isArray(v) ? (v as number[]).join("×") : String(v)))
+  return { summary, entries }
 }
 
 function formatBytes(bytes: number | null | undefined): string {
@@ -107,6 +122,22 @@ export function S3BucketInfoCard({ s3Update, compact = false }: S3BucketInfoCard
             <span>{formatBytes(s3Update.file_size)}</span>
             <span>{dateStr}</span>
           </div>
+          {s3Update.metadata != null && (() => {
+            const { summary, entries } = formatMetadataForDisplay(s3Update.metadata)
+            if (!summary && entries.length === 0) return null
+            return (
+              <div className="text-xs text-muted-foreground mt-2 space-y-0.5">
+                {summary && <div className="break-words">{summary}</div>}
+                {entries.length > 0 && (
+                  <div className="flex flex-wrap gap-x-3 gap-y-0.5">
+                    {entries.slice(0, 10).map((v, i) => (
+                      <span key={i}>{v}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
+          })()}
         </CardHeader>
       </Card>
     )
@@ -153,6 +184,23 @@ export function S3BucketInfoCard({ s3Update, compact = false }: S3BucketInfoCard
             <span className="text-xs font-medium text-muted-foreground">업로드일</span> <span>{dateStr}</span>
           </span>
         </div>
+        {s3Update.metadata != null && (() => {
+          const { summary, entries } = formatMetadataForDisplay(s3Update.metadata)
+          if (!summary && entries.length === 0) return null
+          return (
+            <div className="text-sm mt-3 space-y-1.5">
+              <div className="text-xs font-medium text-muted-foreground">Study/Series 메타데이터</div>
+              {summary && <div className="break-words text-muted-foreground">{summary}</div>}
+              {entries.length > 0 && (
+                <div className="flex flex-wrap gap-x-3 gap-y-1 text-muted-foreground break-words">
+                  {entries.map((v, i) => (
+                    <span key={i}>{v}</span>
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        })()}
       </CardHeader>
     </Card>
   )

@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
     }
 
     const rows = await query(
-      `SELECT id, file_name, bucket_name, file_size, upload_time, created_at, task_id
+      `SELECT id, file_name, bucket_name, file_size, metadata, upload_time, created_at, task_id
        FROM s3_updates
        ORDER BY COALESCE(upload_time, created_at) DESC`
     )

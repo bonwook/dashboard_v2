@@ -25,6 +25,7 @@ interface S3Update {
   file_name: string
   bucket_name?: string | null
   file_size?: number | null
+  metadata?: Record<string, unknown> | string | null
   upload_time?: string | null
   created_at: string
   task_id: string | null

@@ -18,6 +18,57 @@ import { isTaskExpired } from "@/lib/utils/taskHelpers"
 import { parseFlexibleDate } from "@/lib/utils/dateHelpers"
 import type { Task, S3UpdateRow } from "@/lib/types"
 
+/**
+ * Study/Series 식별용 태그만 사용 (PatientName, PatientID 등 PII 제외).
+ * route.ts importantTags 중: StudyDate, StudyTime, Modality, SequenceName, SeriesDescription,
+ * InstanceNumber, TemporalPositionIdentifier, StudyInstanceUID, SeriesInstanceUID, SOPInstanceUID
+ */
+const STUDY_SERIES_METADATA_KEYS: { label: string; keys: string[] }[] = [
+  { label: "Study 일자", keys: ["Study Date", "StudyDate"] },
+  { label: "Study 시간", keys: ["Study Time", "StudyTime"] },
+  { label: "Modality", keys: ["Modality", "modality"] },
+  { label: "Series 설명", keys: ["Series Description", "SeriesDescription"] },
+  { label: "Sequence", keys: ["Sequence Name", "SequenceName"] },
+  { label: "Instance", keys: ["Instance Number", "InstanceNumber"] },
+  { label: "Phase", keys: ["Temporal Position Identifier", "TemporalPositionIdentifier", "Phase"] },
+  { label: "Study UID", keys: ["Study Instance UID", "StudyInstanceUID"] },
+  { label: "Series UID", keys: ["Series Instance UID", "SeriesInstanceUID"] },
+  { label: "SOP UID", keys: ["SOP Instance UID", "SOPInstanceUID"] },
+  { label: "dimensions", keys: ["dimensions"] },
+]
+
+/** s3_updates.metadata(JSON)를 리스트용 한 줄 문자열로 표시 (Study/Series 식별용 태그만) */
+function formatS3Metadata(metadata: S3UpdateRow["metadata"]): string {
+  if (metadata == null) return ""
+  const obj = typeof metadata === "string" ? (() => { try { return JSON.parse(metadata) } catch { return null } })() : metadata
+  if (!obj || typeof obj !== "object") return ""
+  const rec = obj as Record<string, unknown>
+  if (typeof rec.summary === "string" && rec.summary.trim()) return rec.summary.trim()
+  const get = (keys: string[]) => {
+    for (const k of keys) {
+      const v = rec[k]
+      if (v != null && String(v).trim()) return String(v).trim()
+    }
+    return null
+  }
+  const parts: string[] = []
+  for (const { keys } of STUDY_SERIES_METADATA_KEYS) {
+    if (keys[0] === "dimensions") {
+      const dims = rec.dimensions
+      if (Array.isArray(dims) && dims.length) parts.push((dims as number[]).join("×"))
+      continue
+    }
+    const v = get(keys)
+    if (v) parts.push(v)
+  }
+  if (parts.length) return parts.join(" | ")
+  return Object.entries(rec)
+    .filter(([k]) => k !== "summary" && !["Patient Name", "PatientID", "PatientName"].includes(k) && rec[k] != null)
+    .slice(0, 8)
+    .map(([, v]) => (Array.isArray(v) ? (v as number[]).join("×") : String(v)))
+    .join(" | ") || ""
+}
+
 export default function WorklistPage() {
   const [tasks, setTasks] = useState<Task[]>([])
   const [filteredTasks, setFilteredTasks] = useState<Task[]>([])
@@ -446,7 +497,7 @@ export default function WorklistPage() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>제목</TableHead>
+                        <TableHead className="min-w-[380px]">제목</TableHead>
                         <TableHead className="w-[80px] text-center">S3</TableHead>
                         <TableHead>개별/공동</TableHead>
                         <TableHead>요청자</TableHead>
@@ -468,20 +519,23 @@ export default function WorklistPage() {
                               className="cursor-pointer hover:bg-accent/50 bg-amber-500/5 border-l-4 border-l-amber-500/50 border-t border-t-amber-500/20"
                               onClick={() => router.push(`/admin/cases/s3-update/${row.id}`)}
                             >
-                              <TableCell className="font-medium">{row.file_name}</TableCell>
+                              <TableCell className="font-medium align-top min-w-[380px] max-w-[520px]">
+                                <div className="text-sm">{row.file_name}</div>
+                                {row.metadata != null && formatS3Metadata(row.metadata) && (
+                                  <div className="text-xs text-muted-foreground mt-0.5 truncate max-w-full" title={formatS3Metadata(row.metadata)}>
+                                    {formatS3Metadata(row.metadata)}
+                                  </div>
+                                )}
+                              </TableCell>
                               <TableCell className="text-center">
                                 <span className="inline-block w-2 h-2 rounded-full bg-amber-500/80 shrink-0" aria-label="S3" />
                               </TableCell>
                               <TableCell>
                                 <Badge className="bg-amber-500/10 text-amber-600 font-normal">미할당</Badge>
                               </TableCell>
-                              <TableCell>-</TableCell>
+                              <TableCell>{getBucketName(row) || "-"}</TableCell>
                               <TableCell>미지정</TableCell>
-                              <TableCell>
-                                <div className="inline-flex items-center px-2 text-muted-foreground" aria-label="첨부 있음">
-                                  <Paperclip className="h-4 w-4" />
-                                </div>
-                              </TableCell>
+                              <TableCell />
                               <TableCell>-</TableCell>
                               <TableCell className="text-sm text-muted-foreground">
                                 {formatDate(row.upload_time || row.created_at)}
@@ -513,20 +567,23 @@ export default function WorklistPage() {
                                 className="cursor-pointer hover:bg-accent/50 bg-emerald-500/5 border-l-4 border-l-emerald-500/50 border-t border-t-emerald-500/30"
                                 onClick={() => router.push(`/admin/cases/s3-update/${row.id}`)}
                               >
-                                <TableCell className="font-medium">{row.file_name}</TableCell>
+                                <TableCell className="font-medium align-top min-w-[380px] max-w-[520px]">
+                                  <div className="text-sm">{row.file_name}</div>
+                                  {row.metadata != null && formatS3Metadata(row.metadata) && (
+                                    <div className="text-xs text-muted-foreground mt-0.5 truncate max-w-full" title={formatS3Metadata(row.metadata)}>
+                                      {formatS3Metadata(row.metadata)}
+                                    </div>
+                                  )}
+                                </TableCell>
                                 <TableCell className="text-center">
                                   <span className="inline-block w-2 h-2 rounded-full bg-emerald-500/80 shrink-0" aria-label="S3 연결됨" />
                                 </TableCell>
                                 <TableCell>
                                   <Badge className="bg-emerald-500/15 text-emerald-700 font-normal border border-emerald-500/40">연결된 업무 있음</Badge>
                                 </TableCell>
-                                <TableCell>-</TableCell>
+                                <TableCell>{getBucketName(row) || "-"}</TableCell>
                                 <TableCell>미지정</TableCell>
-                                <TableCell>
-                                  <div className="inline-flex items-center px-2 text-muted-foreground" aria-label="첨부 있음">
-                                    <Paperclip className="h-4 w-4" />
-                                  </div>
-                                </TableCell>
+                                <TableCell />
                                 <TableCell>-</TableCell>
                                 <TableCell className="text-sm text-muted-foreground">
                                   {formatDate(row.upload_time || row.created_at)}
@@ -601,7 +658,7 @@ export default function WorklistPage() {
                         return (
                           <TableRow
                             key={task.id}
-                            className={`cursor-pointer hover:bg-accent/50 ${expired ? "bg-red-500/5" : ""}`}
+                            className={`cursor-pointer hover:bg-accent/50 border-l-4 border-l-border ${expired ? "bg-red-500/5" : ""}`}
                             onClick={() => router.push(`/admin/cases/${task.id}`)}
                           >
                             <TableCell className="font-medium">{task.title}</TableCell>
@@ -659,7 +716,7 @@ export default function WorklistPage() {
                             return (
                               <TableRow
                                 key={task.id}
-                                className="cursor-pointer hover:bg-accent/50 opacity-90"
+                                className="cursor-pointer hover:bg-accent/50 opacity-90 border-l-4 border-l-border"
                                 onClick={() => router.push(`/admin/cases/${task.id}`)}
                               >
                                 <TableCell className="font-medium text-center">{task.title}</TableCell>

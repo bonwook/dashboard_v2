@@ -29,7 +29,7 @@ export async function GET(
 
     const { id } = await params
     const row = await queryOne(
-      `SELECT id, file_name, bucket_name, file_size, upload_time, created_at, task_id
+      `SELECT id, file_name, bucket_name, file_size, metadata, upload_time, created_at, task_id
        FROM s3_updates WHERE id = ?`,
       [id]
     )

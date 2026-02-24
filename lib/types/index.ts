@@ -137,12 +137,13 @@ export interface S3UpdateForTask {
   s3_key: string
 }
 
-/** S3 건 목록용 (워크리스트 등, task_id 포함) */
+/** S3 건 목록용 (워크리스트 등, task_id 포함). metadata는 Lambda 등에서 채운 DICOM/NIfTI 태그(JSON). */
 export interface S3UpdateRow {
   id: number
   file_name: string
   bucket_name?: string | null
   file_size?: number | null
+  metadata?: Record<string, unknown> | string | null
   upload_time?: string | null
   created_at: string
   task_id: string | null

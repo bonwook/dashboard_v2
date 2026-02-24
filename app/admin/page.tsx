@@ -4,7 +4,6 @@ import { useEffect, useState, useMemo } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Loader2, Inbox, ChevronRight } from "lucide-react"
-import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { AdminCalendar } from "@/components/admin-calendar"
 import type { S3UpdateRow } from "@/lib/types"
@@ -76,10 +75,16 @@ export default function AdminOverviewPage() {
   }, [])
 
   const todayS3Updates = useMemo(() => {
-    return s3Updates.filter(
+    const list = s3Updates.filter(
       (row) =>
         isToday(row.upload_time ?? null) || isToday(row.created_at ?? null)
     )
+    return [...list].sort((a, b) => {
+      const bucketA = (a.bucket_name ?? "").trim()
+      const bucketB = (b.bucket_name ?? "").trim()
+      if (bucketA !== bucketB) return bucketA.localeCompare(bucketB)
+      return (a.file_name ?? "").localeCompare(b.file_name ?? "")
+    })
   }, [s3Updates])
 
   if (isLoading) {
@@ -113,8 +118,8 @@ export default function AdminOverviewPage() {
       </div>
 
       {/* 새로 들어온 업무 (S3 업데이트 기준) */}
-      <Card className="mb-8">
-        <CardHeader className="pb-2">
+      <Card className="mb-8 min-h-[400px] flex flex-col">
+        <CardHeader className="pb-2 shrink-0">
           <CardTitle className="flex items-center gap-2 text-lg">
             <Inbox className="h-5 w-5 text-muted-foreground" />
             새로 들어온 업무
@@ -123,13 +128,13 @@ export default function AdminOverviewPage() {
             </span>
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="flex-1 min-h-0 flex flex-col">
           {todayS3Updates.length === 0 ? (
             <p className="text-muted-foreground text-sm">
               새로 들어온 S3 업무가 없습니다.
             </p>
           ) : (
-            <ul className="space-y-2">
+            <ul className="flex flex-wrap gap-2 content-start">
               {todayS3Updates.map((row) => (
                 <li key={row.id}>
                   <button
@@ -139,37 +144,22 @@ export default function AdminOverviewPage() {
                         ? router.push(`/admin/cases/${row.task_id}`)
                         : router.push(`/admin/cases/s3-update/${row.id}`)
                     }
-                    className="flex w-full items-center justify-between gap-3 rounded-lg border bg-card p-3 text-left transition-colors hover:bg-muted/50"
+                    className="inline-flex w-fit max-w-full items-center gap-2 rounded-lg border bg-card px-3 py-2 text-left transition-colors hover:bg-muted/50"
                   >
-                    <span className="inline-flex min-w-0 flex-1 items-center gap-2">
-                      <span className="inline-block h-2 w-2 shrink-0 rounded-full bg-amber-500/80" aria-hidden />
-                      <span className="truncate font-medium">
-                        {row.file_name || "(파일명 없음)"}
-                      </span>
-                      {row.task_id ? (
-                        <Badge variant="secondary" className="shrink-0 text-xs">
-                          업무 연결됨
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="shrink-0 text-xs">
-                          미할당
-                        </Badge>
-                      )}
+                    <span className="inline-block h-2 w-2 shrink-0 rounded-full bg-amber-500/80" aria-hidden />
+                    <span className="truncate font-medium">
+                      {row.file_name || "(파일명 없음)"}
                     </span>
+                    {row.task_id ? (
+                      <Badge variant="secondary" className="shrink-0 text-xs">
+                        업무 연결됨
+                      </Badge>
+                    ) : null}
                     <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
                   </button>
                 </li>
               ))}
             </ul>
-          )}
-          {todayS3Updates.length > 0 && (
-            <Link
-              href="/admin/cases?tab=worklist"
-              className="mt-3 inline-flex items-center gap-1 text-sm text-primary hover:underline"
-            >
-              전체 업무 목록 보기
-              <ChevronRight className="h-4 w-4" />
-            </Link>
           )}
         </CardContent>
       </Card>

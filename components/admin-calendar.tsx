@@ -6,12 +6,10 @@ import { useCalendar } from "@/lib/hooks/useCalendar"
 import { CalendarHeader } from "./calendar/CalendarHeader"
 import { CalendarDay } from "./calendar/CalendarDay"
 import { CalendarTaskItem } from "./calendar/CalendarTaskItem"
-import { CalendarAssignedToMeToggle } from "./calendar/CalendarAssignedToMeToggle"
 import { TaskDetailDialog } from "./task/TaskDetailDialog"
 
 export function AdminCalendar() {
   const [selectedTask, setSelectedTask] = useState<any>(null)
-  const [showOnlyAssignedToMe, setShowOnlyAssignedToMe] = useState(false)
   const {
     calendarDate,
     isLoading,
@@ -22,7 +20,7 @@ export function AdminCalendar() {
     calendarDays,
     loadCalendarData,
     getKoreanHoliday,
-  } = useCalendar({ assignedToMeOnly: showOnlyAssignedToMe })
+  } = useCalendar({ assignedToMeOnly: false })
 
   // 유틸리티 함수들
   const getDueRangeKey = useCallback((task: any) => {
@@ -120,12 +118,7 @@ export function AdminCalendar() {
       <Card>
         <CardHeader>
           <div className="w-full">
-            <CalendarHeader date={calendarDate} onMonthChange={changeMonth}>
-              <CalendarAssignedToMeToggle
-                checked={showOnlyAssignedToMe}
-                onCheckedChange={setShowOnlyAssignedToMe}
-              />
-            </CalendarHeader>
+            <CalendarHeader date={calendarDate} onMonthChange={changeMonth} />
           </div>
         </CardHeader>
         <CardContent>
