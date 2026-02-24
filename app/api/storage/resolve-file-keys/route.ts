@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ resolvedKeys: [] })
     }
 
-    // staff/admin은 Worklist 등에서 타 사용자 파일도 열람해야 하므로 user_id 제한 없이 resolve 허용
+    // staff/admin은 Datalist 등에서 타 사용자 파일도 열람해야 하므로 user_id 제한 없이 resolve 허용
     const roleRows = await query(`SELECT role FROM profiles WHERE id = ?`, [decoded.id])
     const role = roleRows && roleRows.length > 0 ? (roleRows[0] as any).role : null
     const isStaffOrAdmin = role === "admin" || role === "staff"

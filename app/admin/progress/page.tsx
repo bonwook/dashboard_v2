@@ -192,11 +192,11 @@ export default function AdminProgressPage() {
     }
   }, [])
 
-  // Progress 데이터 소스 vs Worklist(cases) 경계:
+  // Progress 데이터 소스 vs Datalist(cases) 경계:
   // - Progress: /api/tasks(내가 담당자) + /api/tasks/assigned-by(내가 요청자). staff끼리 할당해도
   //   담당자는 Progress '요청받은 업무'에, 요청자는 '내가 요청한 업무'에 표시됨.
-  // - Worklist(admin/cases): /api/tasks/all → admin/staff 전원이 전체 task 목록 조회.
-  //   따라서 할당받은 업무는 Progress와 Worklist 둘 다에 나타남. Progress는 '내 업무' 뷰, Worklist는 '전체 케이스' 뷰.
+  // - Datalist(admin/cases): /api/tasks/all → admin/staff 전원이 전체 task 목록 조회.
+  //   따라서 할당받은 업무는 Progress와 Datalist 둘 다에 나타남. Progress는 '내 업무' 뷰, Datalist는 '전체 케이스' 뷰.
   const loadTasks = useCallback(async () => {
     setIsLoading(true)
     try {
@@ -645,7 +645,7 @@ export default function AdminProgressPage() {
           <h1 className="text-3xl font-bold">Progress</h1>
           <Badge variant="secondary" className="text-sm font-medium">관리자</Badge>
           {fromWorklist && (
-            <Badge variant="outline" className="text-sm font-normal">Worklist에서 이동</Badge>
+            <Badge variant="outline" className="text-sm font-normal">Datalist에서 이동</Badge>
           )}
         </div>
         <p className="text-muted-foreground mt-2">요청하거나 받은 업무를 드래그하여 상태를 변경할 수 있습니다</p>

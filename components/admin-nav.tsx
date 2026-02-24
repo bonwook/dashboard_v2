@@ -68,7 +68,7 @@ export function AdminNav({ user }: AdminNavProps) {
             >
               <Link href="/admin/cases">
                 <Activity className="mr-2 h-4 w-4" />
-                Worklist
+                Datalist
               </Link>
             </Button>
             <div className="h-6 w-px bg-border" />

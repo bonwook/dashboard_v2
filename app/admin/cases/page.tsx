@@ -385,7 +385,7 @@ export default function WorklistPage() {
     <div className="mx-auto max-w-7xl p-6">
       <div className="mb-8 flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Worklist</h1>
+          <h1 className="text-3xl font-bold">Datalist</h1>
           <p className="text-muted-foreground">모든 작업 목록을 확인하고 관리하세요</p>
         </div>
         <Button asChild size="default" className="shrink-0">

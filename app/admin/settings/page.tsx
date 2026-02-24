@@ -50,7 +50,7 @@ export default function SettingsPage() {
             <div className="rounded-lg border bg-muted/30 p-4 text-sm space-y-2">
               <p className="font-medium">역할별 접속 경로</p>
               <ul className="list-disc list-inside text-muted-foreground space-y-1">
-                <li><strong className="text-foreground">Admin / Staff</strong>: 로그인 후 /admin (Dashboard, Worklist, Upload, Reports, Settings)</li>
+                <li><strong className="text-foreground">Admin / Staff</strong>: 로그인 후 /admin (Dashboard, Datalist, Upload, Reports, Settings)</li>
                 <li><strong className="text-foreground">Client</strong>: 로그인 후 /client (대시보드, Segmentation, Progress, Excel, Reports)</li>
               </ul>
             </div>
