@@ -729,19 +729,7 @@ export default function WorklistPage() {
                                 <TableCell className="text-center">{getPriorityBadge(task.priority)}</TableCell>
                                 <TableCell className="text-sm text-muted-foreground text-center">{formatDate(task.created_at)}</TableCell>
                                 <TableCell className="text-sm text-muted-foreground text-center">{task.due_date ? formatDate(task.due_date) : "-"}</TableCell>
-                                <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
-                                  {(me?.id === task.assigned_by || me?.role === "admin" || me?.role === "staff") && (
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      onClick={(e) => handleDeleteTask(task.id, e)}
-                                      className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                                      title="작업 삭제"
-                                    >
-                                      <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                  )}
-                                </TableCell>
+                                <TableCell className="text-center" />
                               </TableRow>
                             )
                           })}
