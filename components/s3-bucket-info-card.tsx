@@ -24,15 +24,15 @@ export interface S3BucketInfoCardProps {
 
 const PII_KEYS = ["Patient Name", "PatientID", "PatientName", "Patient Birth Date"]
 
-function formatMetadataForDisplay(metadata: S3BucketInfoCardProps["s3Update"]["metadata"]): { summary?: string; entries: string[] } {
+function formatMetadataForDisplay(metadata: S3BucketInfoCardProps["s3Update"]["metadata"]): { summary?: string; entries: [string, string][] } {
   if (metadata == null) return { entries: [] }
   const obj = typeof metadata === "string" ? (() => { try { return JSON.parse(metadata) } catch { return null } })() : metadata
   if (!obj || typeof obj !== "object") return { entries: [] }
   const rec = obj as Record<string, unknown>
   const summary = typeof rec.summary === "string" && rec.summary.trim() ? rec.summary.trim() : undefined
-  const entries = Object.entries(rec)
+  const entries: [string, string][] = Object.entries(rec)
     .filter(([k]) => k !== "summary" && !PII_KEYS.includes(k) && rec[k] != null && String(rec[k]).trim() !== "")
-    .map(([, v]) => (Array.isArray(v) ? (v as number[]).join("×") : String(v)))
+    .map(([k, v]) => [k, Array.isArray(v) ? (v as number[]).join("×") : String(v)])
   return { summary, entries }
 }
 
@@ -73,7 +73,7 @@ export function S3BucketInfoCard({ s3Update, compact = false }: S3BucketInfoCard
       window.open(data.url, "_blank", "noopener,noreferrer")
       toast({
         title: "다운로드 링크 생성됨",
-        description: "24시간 유효한 링크가 새 탭에서 열립니다.",
+        description: "다운로드 링크가 새 탭에서 열립니다.",
       })
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : "다운로드 URL을 가져오지 못했습니다."
@@ -107,9 +107,9 @@ export function S3BucketInfoCard({ s3Update, compact = false }: S3BucketInfoCard
               {isGettingUrl ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : <Download className="mr-2 h-3 w-3" />}
               {isDownloadExpired ? "새 링크 발급" : "다운로드"}
             </Button>
-            <span className="text-xs text-muted-foreground">
-              {isDownloadExpired ? "만료됨" : "24시간 유효"}
-            </span>
+            {isDownloadExpired && (
+              <span className="text-xs text-muted-foreground">만료됨</span>
+            )}
           </div>
           <div className="flex flex-row flex-wrap items-baseline gap-x-4 gap-y-1 text-xs mt-1.5">
             <span className="font-medium break-all">{s3Update.file_name}</span>
@@ -129,11 +129,14 @@ export function S3BucketInfoCard({ s3Update, compact = false }: S3BucketInfoCard
               <div className="text-xs text-muted-foreground mt-2 space-y-0.5">
                 {summary && <div className="break-words">{summary}</div>}
                 {entries.length > 0 && (
-                  <div className="flex flex-wrap gap-x-3 gap-y-0.5">
-                    {entries.slice(0, 10).map((v, i) => (
-                      <span key={i}>{v}</span>
+                  <dl className="grid grid-cols-2 gap-x-4 gap-y-0.5">
+                    {entries.slice(0, 10).map(([key, val], i) => (
+                      <span key={i} className="flex gap-2 items-baseline min-w-0">
+                        <dt className="font-medium text-foreground/80 shrink-0">{key}:</dt>
+                        <dd className="break-words min-w-0 truncate" title={val}>{val}</dd>
+                      </span>
                     ))}
-                  </div>
+                  </dl>
                 )}
               </div>
             )
@@ -150,11 +153,11 @@ export function S3BucketInfoCard({ s3Update, compact = false }: S3BucketInfoCard
           <CardTitle className="text-xl">버킷 정보</CardTitle>
           <Button variant="outline" size="sm" onClick={handleDownload} disabled={isGettingUrl}>
             {isGettingUrl ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-            {isDownloadExpired ? "새 링크 발급" : "다운로드 (24시간 유효 링크)"}
+            {isDownloadExpired ? "새 링크 발급" : "다운로드"}
           </Button>
-          <span className="text-xs text-muted-foreground">
-            {isDownloadExpired ? "만료됨 — 다시 클릭하여 새 링크를 발급받으세요." : "※ 링크는 24시간 후 만료됩니다."}
-          </span>
+          {isDownloadExpired && (
+            <span className="text-xs text-muted-foreground">만료됨 — 다시 클릭하여 새 링크를 발급받으세요.</span>
+          )}
         </div>
         <div className="flex flex-row flex-wrap items-baseline gap-x-6 gap-y-1 text-sm mt-1.5">
           <span>
@@ -192,11 +195,14 @@ export function S3BucketInfoCard({ s3Update, compact = false }: S3BucketInfoCard
               <div className="text-xs font-medium text-muted-foreground">Study/Series 메타데이터</div>
               {summary && <div className="break-words text-muted-foreground">{summary}</div>}
               {entries.length > 0 && (
-                <div className="flex flex-wrap gap-x-3 gap-y-1 text-muted-foreground break-words">
-                  {entries.map((v, i) => (
-                    <span key={i}>{v}</span>
+                <dl className="grid grid-cols-2 gap-x-6 gap-y-1 text-muted-foreground">
+                  {entries.map(([key, val], i) => (
+                    <span key={i} className="flex gap-2 items-baseline min-w-0">
+                      <dt className="font-medium text-foreground/80 shrink-0 min-w-[8rem]">{key}:</dt>
+                      <dd className="break-words min-w-0" title={val}>{val}</dd>
+                    </span>
                   ))}
-                </div>
+                </dl>
               )}
             </div>
           )

@@ -7,8 +7,9 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Progress } from "@/components/ui/progress"
-import { Activity, RefreshCw, Search, Paperclip, Trash2, Plus } from "lucide-react"
+import { Activity, RefreshCw, Search, Trash2, Plus } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { Fragment } from "react"
@@ -76,14 +77,23 @@ export default function WorklistPage() {
   const [filteredS3Updates, setFilteredS3Updates] = useState<S3UpdateRow[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
-  const [priorityFilter, setPriorityFilter] = useState<string>("all")
   const [bucketFilter, setBucketFilter] = useState<string>("all")
   const [me, setMe] = useState<{ id: string; role?: string } | null>(null)
   const [uploadLoading, setUploadLoading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
+  const [selectedRowIds, setSelectedRowIds] = useState<Set<string>>(new Set())
   const router = useRouter()
   const searchParams = useSearchParams()
   const { toast } = useToast()
+
+  const toggleRowSelection = useCallback((id: string) => {
+    setSelectedRowIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }, [])
 
   useEffect(() => {
     const loadMe = async () => {
@@ -102,7 +112,6 @@ export default function WorklistPage() {
 
   const handleRefresh = () => {
     setSearchQuery("")
-    setPriorityFilter("all")
     setBucketFilter("all")
     loadTasks()
   }
@@ -195,9 +204,6 @@ export default function WorklistPage() {
       )
     }
 
-    if (priorityFilter !== "all") {
-      filtered = filtered.filter((task) => task.priority === priorityFilter)
-    }
 
     // S3 필터: s3_updates.bucket_name 기준. "s3_only" = S3에서 온 태스크만, 특정 버킷 = 해당 bucket_name으로 연결된 태스크만
     if (bucketFilter === "s3_only") {
@@ -230,7 +236,7 @@ export default function WorklistPage() {
       }
     }
     setFilteredS3Updates(s3Filtered)
-  }, [tasks, s3Updates, searchQuery, priorityFilter, bucketFilter, getBucketName, taskIdsByBucket, taskIdsFromS3])
+  }, [tasks, s3Updates, searchQuery, bucketFilter, getBucketName, taskIdsByBucket, taskIdsFromS3])
 
   useEffect(() => {
     loadTasks()
@@ -259,12 +265,9 @@ export default function WorklistPage() {
 
   // 목록 새로고침은 초기 로드와 업로드 완료(UploadSection onSuccess) 시에만 수행
 
-  // Dashboard에서 넘어오는 query 적용: priority/q
+  // Dashboard에서 넘어오는 query 적용: q
   useEffect(() => {
-    const priority = searchParams.get("priority")
     const q = searchParams.get("q")
-    const validPriorities = new Set(["all", "urgent", "high", "medium", "low"])
-    if (priority && validPriorities.has(priority)) setPriorityFilter(priority)
     if (q !== null) setSearchQuery(q)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams])
@@ -389,13 +392,12 @@ export default function WorklistPage() {
   const formatDate = (dateString: string) => {
     const date = parseFlexibleDate(dateString)
     if (!date) return "-"
-    return date.toLocaleDateString('ko-KR', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
+    const yy = String(date.getFullYear()).slice(-2)
+    const mm = String(date.getMonth() + 1).padStart(2, "0")
+    const dd = String(date.getDate()).padStart(2, "0")
+    const hh = String(date.getHours()).padStart(2, "0")
+    const min = String(date.getMinutes()).padStart(2, "0")
+    return `${yy}.${mm}.${dd} ${hh}:${min}`
   }
 
   return (
@@ -454,18 +456,6 @@ export default function WorklistPage() {
                     className="pl-9 h-9"
                   />
                 </div>
-                <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-                  <SelectTrigger className="w-[110px] h-9">
-                    <SelectValue placeholder="우선순위" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">우선순위</SelectItem>
-                    <SelectItem value="urgent">긴급</SelectItem>
-                    <SelectItem value="high">높음</SelectItem>
-                    <SelectItem value="medium">보통</SelectItem>
-                    <SelectItem value="low">낮음</SelectItem>
-                  </SelectContent>
-                </Select>
                 <Select value={bucketFilter} onValueChange={setBucketFilter}>
                   <SelectTrigger className="w-[140px] h-9">
                     <SelectValue placeholder="S3" />
@@ -493,16 +483,41 @@ export default function WorklistPage() {
                   <p className="text-muted-foreground">작업이 없습니다. 업로드하거나 업무를 추가해 보세요.</p>
                 </div>
               ) : (
+                <>
+                  {selectedRowIds.size > 0 && (
+                    <div className="flex items-center justify-between gap-4 py-2 px-1 mb-2 rounded-md bg-muted/50 border">
+                      <span className="text-sm text-muted-foreground">선택 {selectedRowIds.size}건</span>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="default"
+                          size="sm"
+                          onClick={() => {
+                            // TODO: 일괄 할당 모달/API 연동
+                            toast({ title: "할당", description: "선택한 항목에 담당자를 지정할 수 있습니다. (기능 연동 예정)" })
+                          }}
+                        >
+                          할당
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setSelectedRowIds(new Set())}
+                        >
+                          선택 해제
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 <div className="overflow-x-auto">
-                  <Table>
+                  <Table className="w-full">
                     <TableHeader>
                       <TableRow>
+                        <TableHead className="w-10 px-2" />
                         <TableHead className="min-w-[380px]">제목</TableHead>
                         <TableHead className="w-[80px] text-center">S3</TableHead>
-                        <TableHead>개별/공동</TableHead>
+                        <TableHead className="w-[70px] text-center">할당</TableHead>
                         <TableHead>요청자</TableHead>
                         <TableHead>담당자</TableHead>
-                        <TableHead>첨부</TableHead>
                         <TableHead>우선순위</TableHead>
                         <TableHead>생성일</TableHead>
                         <TableHead>마감일</TableHead>
@@ -519,10 +534,17 @@ export default function WorklistPage() {
                               className="cursor-pointer hover:bg-accent/50 bg-amber-500/5 border-l-4 border-l-amber-500/50 border-t border-t-amber-500/20"
                               onClick={() => router.push(`/admin/cases/s3-update/${row.id}`)}
                             >
-                              <TableCell className="font-medium align-top min-w-[380px] max-w-[520px]">
+                              <TableCell className="w-10 px-2 align-top" onClick={(e) => e.stopPropagation()}>
+                                <Checkbox
+                                  checked={selectedRowIds.has(`s3-${row.id}`)}
+                                  onCheckedChange={() => toggleRowSelection(`s3-${row.id}`)}
+                                  aria-label={`${row.file_name} 선택`}
+                                />
+                              </TableCell>
+                              <TableCell className="font-medium align-top min-w-[380px] max-w-[520px] py-2">
                                 <div className="text-sm">{row.file_name}</div>
                                 {row.metadata != null && formatS3Metadata(row.metadata) && (
-                                  <div className="text-xs text-muted-foreground mt-0.5 truncate max-w-full" title={formatS3Metadata(row.metadata)}>
+                                  <div className="text-[0.65rem] leading-tight text-muted-foreground mt-0.5 max-w-full break-words whitespace-normal" title={formatS3Metadata(row.metadata)}>
                                     {formatS3Metadata(row.metadata)}
                                   </div>
                                 )}
@@ -530,12 +552,11 @@ export default function WorklistPage() {
                               <TableCell className="text-center">
                                 <span className="inline-block w-2 h-2 rounded-full bg-amber-500/80 shrink-0" aria-label="S3" />
                               </TableCell>
-                              <TableCell>
+                              <TableCell className="text-center">
                                 <Badge className="bg-amber-500/10 text-amber-600 font-normal">미할당</Badge>
                               </TableCell>
                               <TableCell>{getBucketName(row) || "-"}</TableCell>
                               <TableCell>미지정</TableCell>
-                              <TableCell />
                               <TableCell>-</TableCell>
                               <TableCell className="text-sm text-muted-foreground">
                                 {formatDate(row.upload_time || row.created_at)}
@@ -567,10 +588,17 @@ export default function WorklistPage() {
                                 className="cursor-pointer hover:bg-accent/50 bg-emerald-500/5 border-l-4 border-l-emerald-500/50 border-t border-t-emerald-500/30"
                                 onClick={() => router.push(`/admin/cases/s3-update/${row.id}`)}
                               >
-                                <TableCell className="font-medium align-top min-w-[380px] max-w-[520px]">
+                                <TableCell className="w-10 px-2 align-top" onClick={(e) => e.stopPropagation()}>
+                                  <Checkbox
+                                    checked={selectedRowIds.has(`s3-${row.id}`)}
+                                    onCheckedChange={() => toggleRowSelection(`s3-${row.id}`)}
+                                    aria-label={`${row.file_name} 선택`}
+                                  />
+                                </TableCell>
+                                <TableCell className="font-medium align-top min-w-[380px] max-w-[520px] py-2">
                                   <div className="text-sm">{row.file_name}</div>
                                   {row.metadata != null && formatS3Metadata(row.metadata) && (
-                                    <div className="text-xs text-muted-foreground mt-0.5 truncate max-w-full" title={formatS3Metadata(row.metadata)}>
+                                    <div className="text-[0.65rem] leading-tight text-muted-foreground mt-0.5 max-w-full break-words whitespace-normal" title={formatS3Metadata(row.metadata)}>
                                       {formatS3Metadata(row.metadata)}
                                     </div>
                                   )}
@@ -578,12 +606,11 @@ export default function WorklistPage() {
                                 <TableCell className="text-center">
                                   <span className="inline-block w-2 h-2 rounded-full bg-emerald-500/80 shrink-0" aria-label="S3 연결됨" />
                                 </TableCell>
-                                <TableCell>
-                                  <Badge className="bg-emerald-500/15 text-emerald-700 font-normal border border-emerald-500/40">연결된 업무 있음</Badge>
+                                <TableCell className="text-center">
+                                  <Badge className="bg-emerald-500/15 text-emerald-700 font-normal border border-emerald-500/40">할당</Badge>
                                 </TableCell>
                                 <TableCell>{getBucketName(row) || "-"}</TableCell>
                                 <TableCell>미지정</TableCell>
-                                <TableCell />
                                 <TableCell>-</TableCell>
                                 <TableCell className="text-sm text-muted-foreground">
                                   {formatDate(row.upload_time || row.created_at)}
@@ -608,6 +635,13 @@ export default function WorklistPage() {
                                 className={`cursor-pointer hover:bg-accent/50 bg-emerald-500/[0.06] border-l-4 border-l-emerald-500/30 ${expired ? "bg-red-500/5" : ""}`}
                                 onClick={() => router.push(`/admin/cases/${task.id}`)}
                               >
+                                <TableCell className="w-10 px-2" onClick={(e) => e.stopPropagation()}>
+                                  <Checkbox
+                                    checked={selectedRowIds.has(`task-${task.id}`)}
+                                    onCheckedChange={() => toggleRowSelection(`task-${task.id}`)}
+                                    aria-label={`${task.title} 선택`}
+                                  />
+                                </TableCell>
                                 <TableCell className="font-medium pl-10">
                                   <span className="text-emerald-600/90 font-mono mr-2" aria-hidden>ㄴ</span>
                                   {task.title}
@@ -615,22 +649,11 @@ export default function WorklistPage() {
                                 <TableCell className="text-center">
                                   <span className="inline-block w-2 h-2 rounded-full bg-emerald-500/80 shrink-0" aria-label="S3 연결" />
                                 </TableCell>
-                                <TableCell>
-                                  <Badge variant={task.is_multi_assign ? "secondary" : "outline"} className="font-normal">
-                                    {task.is_multi_assign ? "공동" : "개별"}
-                                  </Badge>
+                                <TableCell className="text-center">
+                                  <Badge className="bg-emerald-500/15 text-emerald-700 font-normal border border-emerald-500/40">할당</Badge>
                                 </TableCell>
                                 <TableCell>{task.assigned_by_name || task.assigned_by_email || "Unknown"}</TableCell>
                                 <TableCell>{task.assigned_to_name || task.assigned_to_email || "Unknown"}</TableCell>
-                                <TableCell>
-                                  {task.has_any_attachment ?? ((task.file_keys?.length ?? 0) + (task.comment_file_keys?.length ?? 0) > 0) ? (
-                                    <div className="inline-flex items-center px-2 text-muted-foreground" aria-label="첨부파일 있음" title="첨부파일 있음">
-                                      <Paperclip className="h-4 w-4" />
-                                    </div>
-                                  ) : (
-                                    <span className="text-muted-foreground text-sm">&nbsp;</span>
-                                  )}
-                                </TableCell>
                                 <TableCell>{getPriorityBadge(task.priority)}</TableCell>
                                 <TableCell className="text-sm text-muted-foreground">{formatDate(task.created_at)}</TableCell>
                                 <TableCell className={`text-sm ${expired ? "text-red-600 font-medium" : "text-muted-foreground"}`}>
@@ -656,31 +679,27 @@ export default function WorklistPage() {
                         const task = entry.task
                         const expired = isTaskExpired(task)
                         return (
-                          <TableRow
-                            key={task.id}
+<TableRow
+                          key={task.id}
                             className={`cursor-pointer hover:bg-accent/50 border-l-4 border-l-border ${expired ? "bg-red-500/5" : ""}`}
                             onClick={() => router.push(`/admin/cases/${task.id}`)}
                           >
+                            <TableCell className="w-10 px-2" onClick={(e) => e.stopPropagation()}>
+                              <Checkbox
+                                checked={selectedRowIds.has(`task-${task.id}`)}
+                                onCheckedChange={() => toggleRowSelection(`task-${task.id}`)}
+                                aria-label={`${task.title} 선택`}
+                              />
+                            </TableCell>
                             <TableCell className="font-medium">{task.title}</TableCell>
                             <TableCell className="text-center">
                               <span className="text-muted-foreground">-</span>
                             </TableCell>
-                            <TableCell>
-                              <Badge variant={task.is_multi_assign ? "secondary" : "outline"} className="font-normal">
-                                {task.is_multi_assign ? "공동" : "개별"}
-                              </Badge>
+                            <TableCell className="text-center">
+                              <Badge className="bg-emerald-500/15 text-emerald-700 font-normal border border-emerald-500/40">할당</Badge>
                             </TableCell>
                             <TableCell>{task.assigned_by_name || task.assigned_by_email || "Unknown"}</TableCell>
                             <TableCell>{task.assigned_to_name || task.assigned_to_email || "Unknown"}</TableCell>
-                            <TableCell>
-                              {task.has_any_attachment ?? ((task.file_keys?.length ?? 0) + (task.comment_file_keys?.length ?? 0) > 0) ? (
-                                <div className="inline-flex items-center px-2 text-muted-foreground" aria-label="첨부파일 있음" title="첨부파일 있음">
-                                  <Paperclip className="h-4 w-4" />
-                                </div>
-                              ) : (
-                                <span className="text-muted-foreground text-sm">&nbsp;</span>
-                              )}
-                            </TableCell>
                             <TableCell>{getPriorityBadge(task.priority)}</TableCell>
                             <TableCell className="text-sm text-muted-foreground">{formatDate(task.created_at)}</TableCell>
                             <TableCell className={`text-sm ${expired ? "text-red-600 font-medium" : "text-muted-foreground"}`}>
@@ -705,8 +724,8 @@ export default function WorklistPage() {
                       {/* 완료된 테스크: 맨 아래 */}
                       {completedEntries.length > 0 && (
                         <>
-                          <TableRow className="bg-muted/30 hover:bg-muted/30">
-                            <TableCell colSpan={10} className="font-medium text-muted-foreground py-2 text-center">
+                          <TableRow className="bg-muted/30 hover:bg-muted/30 [&>td]:bg-muted/30">
+                            <TableCell colSpan={10} className="font-medium text-muted-foreground py-2.5 text-center w-full min-w-0">
                               — 완료된 작업 ({completedEntries.length}건) —
                             </TableCell>
                           </TableRow>
@@ -716,29 +735,19 @@ export default function WorklistPage() {
                             return (
                               <TableRow
                                 key={task.id}
-                                className="cursor-pointer hover:bg-accent/50 opacity-90 border-l-4 border-l-border"
+                                className="cursor-pointer hover:bg-accent/50 opacity-90 border-l-4 border-l-border [&>td]:bg-background"
                                 onClick={() => router.push(`/admin/cases/${task.id}`)}
                               >
+                                <TableCell className="w-10 px-2 text-center text-muted-foreground">—</TableCell>
                                 <TableCell className="font-medium text-center">{task.title}</TableCell>
                                 <TableCell className="text-center">
                                   <span className="text-muted-foreground">-</span>
                                 </TableCell>
                                 <TableCell className="text-center">
-                                  <Badge variant={task.is_multi_assign ? "secondary" : "outline"} className="font-normal">
-                                    {task.is_multi_assign ? "공동" : "개별"}
-                                  </Badge>
+                                  <Badge className="bg-emerald-500/15 text-emerald-700 font-normal border border-emerald-500/40">할당</Badge>
                                 </TableCell>
                                 <TableCell className="text-center">{task.assigned_by_name || task.assigned_by_email || "Unknown"}</TableCell>
                                 <TableCell className="text-center">{task.assigned_to_name || task.assigned_to_email || "Unknown"}</TableCell>
-                                <TableCell className="text-center">
-                                  {task.has_any_attachment ?? ((task.file_keys?.length ?? 0) + (task.comment_file_keys?.length ?? 0) > 0) ? (
-                                    <div className="inline-flex items-center justify-center px-2 text-muted-foreground" aria-label="첨부파일 있음">
-                                      <Paperclip className="h-4 w-4" />
-                                    </div>
-                                  ) : (
-                                    <span className="text-muted-foreground text-sm">&nbsp;</span>
-                                  )}
-                                </TableCell>
                                 <TableCell className="text-center">{getPriorityBadge(task.priority)}</TableCell>
                                 <TableCell className="text-sm text-muted-foreground text-center">{formatDate(task.created_at)}</TableCell>
                                 <TableCell className="text-sm text-muted-foreground text-center">{task.due_date ? formatDate(task.due_date) : "-"}</TableCell>
@@ -763,6 +772,7 @@ export default function WorklistPage() {
                     </TableBody>
                   </Table>
                 </div>
+                </>
               )}
             </CardContent>
           </Card>

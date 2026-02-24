@@ -87,6 +87,19 @@ export default function AdminOverviewPage() {
     })
   }, [s3Updates])
 
+  /** 버킷별 그룹: [{ bucket, rows }], bucket 이름 순 */
+  const todayByBucket = useMemo(() => {
+    const map = new Map<string, S3UpdateRow[]>()
+    for (const row of todayS3Updates) {
+      const bucket = (row.bucket_name ?? "").trim() || "(버킷 없음)"
+      if (!map.has(bucket)) map.set(bucket, [])
+      map.get(bucket)!.push(row)
+    }
+    return Array.from(map.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([bucket, rows]) => ({ bucket, rows }))
+  }, [todayS3Updates])
+
   if (isLoading) {
     return (
       <div className="relative mx-auto max-w-7xl p-6 flex items-center justify-center min-h-screen">
@@ -134,32 +147,43 @@ export default function AdminOverviewPage() {
               새로 들어온 S3 업무가 없습니다.
             </p>
           ) : (
-            <ul className="flex flex-wrap gap-2 content-start">
-              {todayS3Updates.map((row) => (
-                <li key={row.id}>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      row.task_id
-                        ? router.push(`/admin/cases/${row.task_id}`)
-                        : router.push(`/admin/cases/s3-update/${row.id}`)
-                    }
-                    className="inline-flex w-fit max-w-full items-center gap-2 rounded-lg border bg-card px-3 py-2 text-left transition-colors hover:bg-muted/50"
-                  >
-                    <span className="inline-block h-2 w-2 shrink-0 rounded-full bg-amber-500/80" aria-hidden />
-                    <span className="truncate font-medium">
-                      {row.file_name || "(파일명 없음)"}
-                    </span>
-                    {row.task_id ? (
-                      <Badge variant="secondary" className="shrink-0 text-xs">
-                        업무 연결됨
-                      </Badge>
-                    ) : null}
-                    <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-                  </button>
-                </li>
+            <div className="space-y-6">
+              {todayByBucket.map(({ bucket, rows }) => (
+                <div key={bucket} className="space-y-2">
+                  <h3 className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
+                    <span className="inline-block h-2 w-2 rounded-full bg-primary/80" aria-hidden />
+                    {bucket}
+                    <span className="font-normal">({rows.length}건)</span>
+                  </h3>
+                  <ul className="flex flex-wrap gap-2 content-start">
+                    {rows.map((row) => (
+                      <li key={row.id}>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            row.task_id
+                              ? router.push(`/admin/cases/${row.task_id}`)
+                              : router.push(`/admin/cases/s3-update/${row.id}`)
+                          }
+                          className="inline-flex w-fit max-w-full items-center gap-2 rounded-lg border bg-card px-3 py-2 text-left transition-colors hover:bg-muted/50"
+                        >
+                          <span className="inline-block h-2 w-2 shrink-0 rounded-full bg-amber-500/80" aria-hidden />
+                          <span className="truncate font-medium">
+                            {row.file_name || "(파일명 없음)"}
+                          </span>
+                          {row.task_id ? (
+                            <Badge variant="secondary" className="shrink-0 text-xs">
+                              업무 연결됨
+                            </Badge>
+                          ) : null}
+                          <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               ))}
-            </ul>
+            </div>
           )}
         </CardContent>
       </Card>
