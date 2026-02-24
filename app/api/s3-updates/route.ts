@@ -24,11 +24,21 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
-    const rows = await query(
-      `SELECT id, file_name, bucket_name, file_size, metadata, upload_time, created_at, task_id
-       FROM s3_updates
-       ORDER BY COALESCE(upload_time, created_at) DESC`
-    )
+    const { searchParams } = new URL(request.url)
+    const taskId = searchParams.get("task_id")
+
+    const rows = taskId
+      ? await query(
+          `SELECT id, file_name, bucket_name, file_size, metadata, upload_time, created_at, task_id
+           FROM s3_updates WHERE task_id = ?
+           ORDER BY COALESCE(upload_time, created_at) DESC`,
+          [taskId]
+        )
+      : await query(
+          `SELECT id, file_name, bucket_name, file_size, metadata, upload_time, created_at, task_id
+           FROM s3_updates
+           ORDER BY COALESCE(upload_time, created_at) DESC`
+        )
 
     const list = (rows || []).map((row: Record<string, unknown>) => {
       const r = row as { file_name: string; bucket_name?: string | null }

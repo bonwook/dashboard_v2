@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ReportFormSection } from "../components/ReportFormSection"
 import { reportFormSections } from "../reportFormFields"
+import { DICOM_IMPORTANT_TAGS } from "@/lib/constants/dicomTags"
+import { buildPlaceholderFromS3Metadata } from "../s3MetadataToFormMap"
 import type { FormValues } from "../types"
 import { ArrowLeft, Loader2, Save } from "lucide-react"
 import { useParams } from "next/navigation"
@@ -18,6 +20,8 @@ export default function ReportFormPage() {
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [formValues, setFormValues] = useState<FormValues>({})
+  const [placeholderFromS3, setPlaceholderFromS3] = useState<Record<string, string | number>>({})
+  const [s3MetadataKeyValues, setS3MetadataKeyValues] = useState<Record<string, string | number>>({})
   const [caseId, setCaseId] = useState<string>(taskId)
   const [taskTitle, setTaskTitle] = useState<string>("")
   const [loading, setLoading] = useState(true)
@@ -37,6 +41,18 @@ export default function ReportFormPage() {
   }, [])
 
   const onSelectAllInSection = useCallback((sectionId: string, checked: boolean) => {
+    if (sectionId === "s3_metadata") {
+      setSelectedIds((prev) => {
+        const next = new Set(prev)
+        for (const t of DICOM_IMPORTANT_TAGS) {
+          const id = "s3_meta_" + t.key
+          if (checked) next.add(id)
+          else next.delete(id)
+        }
+        return next
+      })
+      return
+    }
     const section = reportFormSections.find((s) => s.id === sectionId)
     if (!section) return
     setSelectedIds((prev) => {
@@ -52,9 +68,10 @@ export default function ReportFormPage() {
   useEffect(() => {
     let cancelled = false
     async function load() {
-      const [reportRes, tasksRes] = await Promise.all([
+      const [reportRes, tasksRes, s3Res] = await Promise.all([
         fetch(`/api/reports/info?task_id=${encodeURIComponent(taskId)}`, { credentials: "include" }),
         fetch("/api/reports", { credentials: "include" }),
+        fetch(`/api/s3-updates?task_id=${encodeURIComponent(taskId)}`, { credentials: "include" }),
       ])
       if (cancelled) return
       if (reportRes.ok) {
@@ -66,8 +83,33 @@ export default function ReportFormPage() {
       }
       if (tasksRes.ok) {
         const listData = await tasksRes.json()
-        const task = (listData.reports || []).find((r: any) => r.id === taskId)
-        if (task) setTaskTitle(task.patient_name ?? task.title ?? "")
+        const task = (listData.reports || []).find((r: { id: string }) => r.id === taskId)
+        if (task) setTaskTitle((task as { patient_name?: string; title?: string }).patient_name ?? (task as { title?: string }).title ?? "")
+      }
+      if (s3Res.ok) {
+        const s3Data = await s3Res.json()
+        const list = s3Data.s3Updates as { metadata?: Record<string, unknown> | string | null }[] | undefined
+        const first = list?.[0]
+        if (first?.metadata) {
+          try {
+            const raw = typeof first.metadata === "string"
+              ? (JSON.parse(first.metadata || "{}") as Record<string, unknown>)
+              : first.metadata
+            const keyValues: Record<string, string | number> = {}
+            for (const [k, v] of Object.entries(raw)) {
+              if (v !== undefined && v !== null && v !== "")
+                keyValues[k] = typeof v === "object" ? JSON.stringify(v) : String(v).trim()
+            }
+            setS3MetadataKeyValues(keyValues)
+            const mapped = buildPlaceholderFromS3Metadata(first.metadata)
+            const metaPlaceholders: Record<string, string | number> = {}
+            for (const [k, val] of Object.entries(keyValues))
+              metaPlaceholders["s3_meta_" + k] = val
+            setPlaceholderFromS3({ ...mapped, ...metaPlaceholders })
+          } catch {
+            // ignore parse error
+          }
+        }
       }
       setLoading(false)
     }
@@ -78,6 +120,12 @@ export default function ReportFormPage() {
   const handleSave = async () => {
     setSaving(true)
     try {
+      const dataToSave: FormValues = { ...formValues }
+      for (const [fieldId, placeholderValue] of Object.entries(placeholderFromS3)) {
+        const current = dataToSave[fieldId]
+        if (current === undefined || current === null || current === "")
+          dataToSave[fieldId] = placeholderValue
+      }
       const res = await fetch("/api/reports/info", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -85,7 +133,7 @@ export default function ReportFormPage() {
         body: JSON.stringify({
           task_id: taskId,
           case_id: caseId,
-          form_data: formValues,
+          form_data: dataToSave,
         }),
       })
       if (!res.ok) {
@@ -145,6 +193,8 @@ export default function ReportFormPage() {
         formValues={formValues}
         onValueChange={onValueChange}
         onSelectAllInSection={onSelectAllInSection}
+        placeholderOverrides={placeholderFromS3}
+        s3MetadataKeyValues={s3MetadataKeyValues}
       />
 
       <div className="mt-8 flex justify-center pb-6">
