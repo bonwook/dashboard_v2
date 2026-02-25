@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo, useCallback } from "react"
+import { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -11,10 +11,10 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Progress } from "@/components/ui/progress"
 import { Activity, RefreshCw, Search, Trash2, Plus, CheckCircle2 } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
-import Link from "next/link"
 import { Fragment } from "react"
 import { useToast } from "@/hooks/use-toast"
 import { UploadSection } from "./components/UploadSection"
+import Link from "next/link"
 import { BatchRequestModal } from "./components/BatchRequestModal"
 import { isTaskExpired, getDaysOverdue } from "@/lib/utils/taskHelpers"
 import { parseFlexibleDate } from "@/lib/utils/dateHelpers"
@@ -84,20 +84,22 @@ export default function WorklistPage() {
   const [me, setMe] = useState<{ id: string; role?: string } | null>(null)
   const [uploadLoading, setUploadLoading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
-  const [selectedRowIds, setSelectedRowIds] = useState<Set<string>>(new Set())
+  /** 고무밴드로 시각적으로 선택된 행 */
+  const [rubberSelectedIds, setRubberSelectedIds] = useState<Set<string>>(new Set())
   const [batchRequestOpen, setBatchRequestOpen] = useState(false)
+  const [modalItems, setModalItems] = useState<Set<string>>(new Set())
+  /** 커스텀 드래그: 마우스를 따라다니는 카드 표시용 */
+  const [dragCard, setDragCard] = useState<{ x: number; y: number; rows: Set<string>; files: S3UpdateRow[] } | null>(null)
+  const [isDragOverBtn, setIsDragOverBtn] = useState(false)
+  const dragStateRef = useRef<{ startX: number; startY: number; started: boolean; rows: Set<string>; files: S3UpdateRow[] } | null>(null)
+  const dropBtnRef = useRef<HTMLDivElement>(null)
+  const [rubberBandActive, setRubberBandActive] = useState(false)
+  const [rubberBandRect, setRubberBandRect] = useState<{ x: number; y: number; w: number; h: number } | null>(null)
+  const rubberBandStartRef = useRef<{ x: number; y: number } | null>(null)
+  const rubberBandRectRef = useRef<{ x: number; y: number; w: number; h: number } | null>(null)
   const router = useRouter()
   const searchParams = useSearchParams()
   const { toast } = useToast()
-
-  const toggleRowSelection = useCallback((id: string) => {
-    setSelectedRowIds((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-  }, [])
 
   useEffect(() => {
     const loadMe = async () => {
@@ -280,6 +282,119 @@ export default function WorklistPage() {
     filterTasks()
   }, [filterTasks])
 
+  // 전체 페이지 고무밴드: mousedown → drag → mouseup
+  useEffect(() => {
+    const onDown = (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+      // 인터랙티브 요소, 드래그 가능한 행([data-draggable-row]), 기타 예외 영역 제외
+      if (target.closest("button, a, input, textarea, select, [role='checkbox'], th, label, [data-no-rubber], [data-draggable-row]")) return
+      if (e.button !== 0) return
+      e.preventDefault()
+      rubberBandStartRef.current = { x: e.clientX, y: e.clientY }
+      rubberBandRectRef.current = null
+      setRubberBandActive(true)
+      setRubberBandRect(null)
+    }
+    document.addEventListener("mousedown", onDown)
+    return () => document.removeEventListener("mousedown", onDown)
+  }, [])
+
+  // 커스텀 row 드래그: mousemove/mouseup 전역 등록 (항상 활성)
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      const ds = dragStateRef.current
+      if (!ds) return
+      const dx = e.clientX - ds.startX
+      const dy = e.clientY - ds.startY
+      // 5px 임계값 넘으면 드래그 시작
+      if (!ds.started && Math.sqrt(dx * dx + dy * dy) > 5) {
+        ds.started = true
+        document.body.style.userSelect = "none"
+        document.body.style.cursor = "grabbing"
+      }
+      if (!ds.started) return
+      setDragCard({ x: e.clientX, y: e.clientY, rows: ds.rows, files: ds.files })
+      // 드롭 버튼 위인지 확인
+      const btn = dropBtnRef.current
+      if (btn) {
+        const r = btn.getBoundingClientRect()
+        setIsDragOverBtn(e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom)
+      }
+    }
+    const onUp = (e: MouseEvent) => {
+      const ds = dragStateRef.current
+      if (!ds) return
+      if (ds.started) {
+        const btn = dropBtnRef.current
+        if (btn) {
+          const r = btn.getBoundingClientRect()
+          if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) {
+            setModalItems(new Set(ds.rows))
+            setBatchRequestOpen(true)
+          }
+        }
+      }
+      dragStateRef.current = null
+      setDragCard(null)
+      setIsDragOverBtn(false)
+      document.body.style.userSelect = ""
+      document.body.style.cursor = ""
+    }
+    document.addEventListener("mousemove", onMove)
+    document.addEventListener("mouseup", onUp)
+    return () => {
+      document.removeEventListener("mousemove", onMove)
+      document.removeEventListener("mouseup", onUp)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!rubberBandActive) return
+    const onMove = (e: MouseEvent) => {
+      const start = rubberBandStartRef.current
+      if (!start) return
+      const rect = {
+        x: Math.min(e.clientX, start.x),
+        y: Math.min(e.clientY, start.y),
+        w: Math.abs(e.clientX - start.x),
+        h: Math.abs(e.clientY - start.y),
+      }
+      rubberBandRectRef.current = rect
+      setRubberBandRect({ ...rect })
+    }
+    const onUp = () => {
+      const rect = rubberBandRectRef.current
+      if (rect && (rect.w > 8 || rect.h > 8)) {
+        // 드래그 선택: 교차 행만 새로 선택 (기존 선택 대체)
+        const selBox = { left: rect.x, right: rect.x + rect.w, top: rect.y, bottom: rect.y + rect.h }
+        const rows = document.querySelectorAll<HTMLElement>("[data-selectable-row]")
+        const next = new Set<string>()
+        rows.forEach((row) => {
+          const r = row.getBoundingClientRect()
+          if (r.left < selBox.right && r.right > selBox.left && r.top < selBox.bottom && r.bottom > selBox.top) {
+            const id = row.getAttribute("data-selectable-row")
+            if (id) next.add(id)
+          }
+        })
+        setRubberSelectedIds(next)
+      } else {
+        // 단순 클릭 (움직임 없음) → 선택 및 버튼 카운트 초기화
+        setRubberSelectedIds(new Set())
+        setModalItems(new Set())
+      }
+      rubberBandStartRef.current = null
+      rubberBandRectRef.current = null
+      setRubberBandActive(false)
+      setRubberBandRect(null)
+    }
+    window.addEventListener("mousemove", onMove)
+    window.addEventListener("mouseup", onUp)
+    return () => {
+      window.removeEventListener("mousemove", onMove)
+      window.removeEventListener("mouseup", onUp)
+    }
+  }, [rubberBandActive])
+
   // 진행 항목 먼저, 완료된 테스크는 맨 아래로
   const filteredInProgress = useMemo(() => filteredTasks.filter((t) => t.status !== "completed"), [filteredTasks])
   const filteredCompleted = useMemo(() => filteredTasks.filter((t) => t.status === "completed"), [filteredTasks])
@@ -431,7 +546,7 @@ export default function WorklistPage() {
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold">Datalist</h1>
-          <p className="text-muted-foreground">업로드와 모든 작업 목록을 한 곳에서 확인하고 관리하세요</p>
+          <p className="text-muted-foreground">업로드와 작업 목록을 한 곳에서 확인하고 관리하세요</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <UploadSection
@@ -446,12 +561,6 @@ export default function WorklistPage() {
               setUploadProgress(0)
             }}
           />
-          <Button asChild size="default" className="shrink-0">
-            <Link href="/admin/analytics?from=worklist">
-              <Plus className="mr-2 h-4 w-4" />
-              업무 추가
-            </Link>
-          </Button>
         </div>
       </div>
 
@@ -510,7 +619,7 @@ export default function WorklistPage() {
                 </div>
               ) : (
                 <>
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto select-none">
                   <Table className="w-full table-fixed">
                     <TableHeader>
                       <TableRow>
@@ -532,15 +641,24 @@ export default function WorklistPage() {
                           return (
                             <TableRow
                               key={`s3-${row.id}`}
-                              className="cursor-pointer hover:bg-accent/50 bg-amber-500/5 border-l-4 border-l-amber-500/50 border-t border-t-amber-500/20"
+                              data-selectable-row={`s3-${row.id}`}
+                              data-draggable-row
+                              onMouseDown={(e) => {
+                                if (e.button !== 0) return
+                                const group = rubberSelectedIds.has(`s3-${row.id}`) && rubberSelectedIds.size > 1
+                                  ? new Set(rubberSelectedIds)
+                                  : new Set([`s3-${row.id}`])
+                                const files = s3Updates.filter((u) => group.has(`s3-${u.id}`))
+                                dragStateRef.current = { startX: e.clientX, startY: e.clientY, started: false, rows: group, files }
+                              }}
+                              className={`cursor-grab hover:bg-accent/50 bg-amber-500/5 border-l-4 border-l-amber-500/50 border-t border-t-amber-500/20 ${rubberSelectedIds.has(`s3-${row.id}`) ? "ring-inset ring-1 ring-primary bg-primary/10" : ""}`}
                               onClick={() => router.push(`/admin/cases/s3-update/${row.id}`)}
                             >
-                              <TableCell className="w-10 px-2 align-top" onClick={(e) => e.stopPropagation()}>
-                                <Checkbox
-                                  checked={selectedRowIds.has(`s3-${row.id}`)}
-                                  onCheckedChange={() => toggleRowSelection(`s3-${row.id}`)}
-                                  aria-label={`${row.file_name} 선택`}
-                                />
+                              <TableCell className="w-10 px-2 align-top">
+                                {/* 고무밴드 선택 표시 */}
+                                <div className={`w-4 h-4 rounded-sm border flex items-center justify-center ${rubberSelectedIds.has(`s3-${row.id}`) ? "bg-primary border-primary" : "border-muted-foreground/30"}`}>
+                                  {rubberSelectedIds.has(`s3-${row.id}`) && <span className="text-primary-foreground text-[10px] leading-none">✓</span>}
+                                </div>
                               </TableCell>
                               <TableCell className="font-medium align-top py-2 min-w-0">
                                 <div className="text-sm truncate" title={row.file_name}>{row.file_name}</div>
@@ -659,18 +777,12 @@ export default function WorklistPage() {
                         const task = entry.task
                         const expired = isTaskExpired(task)
                         return (
-<TableRow
-                          key={task.id}
+                          <TableRow
+                            key={task.id}
                             className={`cursor-pointer hover:bg-accent/50 border-l-4 border-l-border ${expired ? "bg-red-500/5" : ""}`}
                             onClick={() => router.push(`/admin/cases/${task.id}`)}
                           >
-                            <TableCell className="w-10 px-2" onClick={(e) => e.stopPropagation()}>
-                              <Checkbox
-                                checked={selectedRowIds.has(`task-${task.id}`)}
-                                onCheckedChange={() => toggleRowSelection(`task-${task.id}`)}
-                                aria-label={`${task.title} 선택`}
-                              />
-                            </TableCell>
+                            <TableCell className="w-10 px-2" />
                             <TableCell className="font-medium min-w-0">
                               <span className="truncate block" title={task.title}>{task.title}</span>
                             </TableCell>
@@ -751,38 +863,111 @@ export default function WorklistPage() {
             </CardContent>
           </Card>
 
-          {selectedRowIds.size > 0 && (
-            <div className="flex justify-center items-center gap-4 py-6">
-              <span className="text-sm text-muted-foreground">선택 {selectedRowIds.size}건</span>
-              <Button
-                variant="default"
-                size="lg"
-                className="cursor-pointer"
-                onClick={() => setBatchRequestOpen(true)}
-              >
-                요청
-              </Button>
-              <Button
-                variant="ghost"
-                size="lg"
-                className="cursor-pointer"
-                onClick={() => setSelectedRowIds(new Set())}
-              >
-                취소
-              </Button>
+          {/* 카드 하단 중앙 업무 추가 버튼 */}
+          <div className="flex justify-center py-6" data-no-rubber>
+            <div ref={dropBtnRef}>
+              {(() => {
+                const count = dragCard?.rows.size ?? modalItems.size
+                const hasCount = count > 0
+                if (isDragOverBtn) {
+                  return (
+                    <Button
+                      size="lg"
+                      className="shadow-xl transition-all ring-2 ring-primary ring-offset-2 scale-110 pointer-events-none animate-pulse"
+                    >
+                      <Plus className="mr-2 h-4 w-4" />
+                      업무 {count}건 추가
+                    </Button>
+                  )
+                }
+                return (
+                  <Button size="lg" asChild className="shadow-lg">
+                    <Link href="/admin/analytics?from=worklist">
+                      <Plus className="mr-2 h-4 w-4" />
+                      {hasCount ? `업무 ${count}건 추가` : "업무 추가"}
+                    </Link>
+                  </Button>
+                )
+              })()}
             </div>
-          )}
+          </div>
 
           <BatchRequestModal
             open={batchRequestOpen}
             onOpenChange={setBatchRequestOpen}
-            selectedRowIds={selectedRowIds}
+            selectedRowIds={modalItems}
             tasks={filteredInProgress}
+            s3Updates={s3Updates}
             onSuccess={() => {
-              setSelectedRowIds(new Set())
+              setModalItems(new Set())
+              setRubberSelectedIds(new Set())
               loadTasks()
             }}
           />
+
+      {/* 고무밴드 선택 오버레이 */}
+      {rubberBandRect && (rubberBandRect.w > 5 || rubberBandRect.h > 5) && (
+        <div
+          className="fixed pointer-events-none z-60 border-2 border-primary/70 bg-primary/10 rounded"
+          style={{
+            left: rubberBandRect.x,
+            top: rubberBandRect.y,
+            width: rubberBandRect.w,
+            height: rubberBandRect.h,
+          }}
+        />
+      )}
+
+      {/* 선택 힌트 — 오른쪽 하단 고정 */}
+      {rubberSelectedIds.size > 0 && !dragCard && (
+        <div className="fixed bottom-6 right-6 z-40 pointer-events-none">
+          <div className="flex items-center gap-2 bg-primary text-primary-foreground text-xs font-medium px-3.5 py-2 rounded-xl shadow-lg">
+            <span className="bg-primary-foreground/20 text-primary-foreground font-bold px-2 py-0.5 rounded-full text-[11px]">
+              {rubberSelectedIds.size}건
+            </span>
+            잡고 끌어서 업무 추가 버튼에 놓으세요
+          </div>
+        </div>
+      )}
+
+      {/* 커스텀 드래그 카드 (마우스 따라다니는 플로팅 카드) */}
+      {dragCard && (
+        <div
+          className="fixed pointer-events-none z-9999"
+          style={{ left: dragCard.x + 14, top: dragCard.y - 24 }}
+        >
+          <div
+            className="bg-white border-2 rounded-xl px-4 py-3 min-w-[180px] max-w-[260px] transition-none"
+            style={{
+              borderColor: isDragOverBtn ? "#16a34a" : "#3b82f6",
+              boxShadow: isDragOverBtn
+                ? "4px 4px 0 #86efac, 8px 8px 0 #bbf7d0, 0 12px 28px rgba(0,0,0,0.18)"
+                : "4px 4px 0 #93c5fd, 8px 8px 0 #bfdbfe, 0 12px 28px rgba(0,0,0,0.18)",
+              transform: "rotate(-1.5deg)",
+            }}
+          >
+            <div className="flex items-center gap-2 mb-2">
+              <span
+                className="text-white text-xs font-bold px-2.5 py-0.5 rounded-full"
+                style={{ background: isDragOverBtn ? "#16a34a" : "#2563eb" }}
+              >
+                {dragCard.rows.size}건
+              </span>
+              <span className="text-sm font-semibold" style={{ color: isDragOverBtn ? "#15803d" : "#1d4ed8" }}>
+                {isDragOverBtn ? "여기에 놓기" : "드래그 중"}
+              </span>
+            </div>
+            {dragCard.files.slice(0, 4).map((f) => (
+              <div key={f.id} className="text-xs text-gray-600 truncate max-w-[220px] py-0.5">
+                · {f.file_name}
+              </div>
+            ))}
+            {dragCard.files.length > 4 && (
+              <div className="text-xs text-gray-400 mt-1">그 외 {dragCard.files.length - 4}개</div>
+            )}
+          </div>
+        </div>
+      )}
 
     </div>
   )

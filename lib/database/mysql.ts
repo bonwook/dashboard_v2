@@ -40,9 +40,25 @@ export async function getPool(): Promise<mysql.Pool> {
 }
 
 export async function query<T = any>(sql: string, params?: any[]): Promise<T[]> {
-  const pool = await getPool()
-  const [rows] = await pool.execute(sql, params)
-  return rows as T[]
+  try {
+    const pool = await getPool()
+    const [rows] = await pool.execute(sql, params)
+    return rows as T[]
+  } catch (err: unknown) {
+    // 비밀번호 로테이션 이후 캐시된 풀의 자격증명이 만료된 경우:
+    // 풀을 재생성해 Secrets Manager에서 최신 비밀번호를 다시 가져옴
+    if (
+      err instanceof Error &&
+      "code" in err &&
+      (err as NodeJS.ErrnoException).code === "ER_ACCESS_DENIED_ERROR"
+    ) {
+      globalForPool.__flonicsMysqlPool = undefined
+      const freshPool = await getPool()
+      const [rows] = await freshPool.execute(sql, params)
+      return rows as T[]
+    }
+    throw err
+  }
 }
 
 export async function queryOne<T = any>(sql: string, params?: any[]): Promise<T | null> {

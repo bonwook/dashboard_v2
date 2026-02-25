@@ -20,7 +20,8 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
-import type { Task } from "@/lib/types"
+import { TaskS3BucketCard } from "@/components/task-s3-bucket-card"
+import type { Task, S3UpdateRow } from "@/lib/types"
 
 type Profile = { id: string; full_name: string | null; email: string }
 
@@ -29,6 +30,7 @@ interface BatchRequestModalProps {
   onOpenChange: (open: boolean) => void
   selectedRowIds: Set<string>
   tasks: Task[]
+  s3Updates: S3UpdateRow[]
   onSuccess: () => void
 }
 
@@ -37,6 +39,7 @@ export function BatchRequestModal({
   onOpenChange,
   selectedRowIds,
   tasks,
+  s3Updates,
   onSuccess,
 }: BatchRequestModalProps) {
   const { toast } = useToast()
@@ -58,6 +61,11 @@ export function BatchRequestModal({
     })
     return { s3Ids: s3, taskIds: task }
   }, [selectedRowIds])
+
+  const selectedS3Updates = useMemo(
+    () => s3Updates.filter((u) => s3Ids.includes(String(u.id))),
+    [s3Updates, s3Ids]
+  )
 
   const canNewTask = s3Ids.length >= 1
   const canAttach = s3Ids.length >= 1 && tasks.length >= 1
@@ -172,13 +180,17 @@ export function BatchRequestModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>일괄 요청</DialogTitle>
           <DialogDescription>
             S3 {s3Ids.length}건, 업무 {taskIds.length}건 선택됨
           </DialogDescription>
         </DialogHeader>
+
+        {selectedS3Updates.length > 0 && (
+          <TaskS3BucketCard taskTitle="" s3Updates={selectedS3Updates} />
+        )}
 
         {step === "choice" && (
           <div className="flex flex-col gap-3 py-2">
