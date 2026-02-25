@@ -28,6 +28,7 @@ import { TaskS3BucketCard } from "@/components/task-s3-bucket-card"
 import { useWorkEditor } from "./hooks/useWorkEditor"
 import { useCommentEditor } from "./hooks/useCommentEditor"
 import { safeStorage } from "@/lib/utils/safeStorage"
+import { markTaskSeen } from "@/lib/utils/newTaskTracker"
 
 export default function ClientProgressPage() {
   const [tasks, setTasks] = useState<Task[]>([])
@@ -604,6 +605,7 @@ export default function ClientProgressPage() {
                     onClick={(e) => {
                       // 드래그가 아닐 때만 팝업 열기
                       if (!draggedTask || draggedTask.id !== task.id) {
+                        markTaskSeen(task.id)
                         setSelectedTask(task)
                       }
                     }}
@@ -681,7 +683,7 @@ export default function ClientProgressPage() {
                           getStatusLabel={getStatusLabel}
                           onDragStart={handleDragStart}
                           isDragging={draggedTask?.id === task.id}
-                          onTaskClick={setSelectedTask}
+                          onTaskClick={(t) => { markTaskSeen(t.id); setSelectedTask(t) }}
                           workTaskId={workTaskId}
                         />
                       ))

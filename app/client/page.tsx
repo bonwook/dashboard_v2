@@ -9,6 +9,7 @@ import { CalendarHeader } from "@/components/calendar/CalendarHeader"
 import { CalendarDay } from "@/components/calendar/CalendarDay"
 import { TaskStatusBadge } from "@/components/task/TaskBadge"
 import { getTaskStatusColor, isTaskOverdue, getPriorityBorderColor, getStatusBorderColor } from "@/lib/utils/taskHelpers"
+import { getSeenTaskIds, markTaskSeen, isNewTask } from "@/lib/utils/newTaskTracker"
 
 // 동적 import: TaskDetailDialog는 사용자가 태스크 클릭 시에만 필요 (progress와 동일 UI/기능)
 const TaskDetailDialog = lazy(() => import("@/components/task/TaskDetailDialog").then(mod => ({ default: mod.TaskDetailDialog })))
@@ -33,14 +34,31 @@ export default function ClientDashboardPage() {
   } = useTaskData()
 
   const [selectedTask, setSelectedTask] = useState<any>(null)
+  const [seenTaskIds, setSeenTaskIds] = useState<Set<string>>(() => getSeenTaskIds())
+
+  // 포커스(탭 전환) 또는 마운트 시 localStorage 재동기화
+  useEffect(() => {
+    const sync = () => setSeenTaskIds(getSeenTaskIds())
+    sync()
+    window.addEventListener("focus", sync)
+    return () => window.removeEventListener("focus", sync)
+  }, [])
 
   useEffect(() => {
     loadCalendarData()
   }, [loadCalendarData])
 
   const handleTaskClick = useCallback((task: any, type: string) => {
+    markTaskSeen(task.id)
+    setSeenTaskIds(getSeenTaskIds())
     setSelectedTask({ ...task, task_type: type })
   }, [])
+
+  // 24시간 이내이고 아직 확인하지 않은 태스크만 대시보드에 표시
+  const newTasks = useMemo(
+    () => (assignedTasks ?? []).filter((t) => isNewTask(t, seenTaskIds)),
+    [assignedTasks, seenTaskIds]
+  )
 
   // 태스크 필터링 로직 (API에서 이미 필터링됨)
   const filterTasks = useCallback((tasks: any[], dayStr: string) => {
@@ -67,7 +85,7 @@ export default function ClientDashboardPage() {
           <CardHeader className="flex flex-row items-center justify-between pb-2 shrink-0">
             <div className="flex items-center gap-4">
               <div>
-                <CardTitle className="text-sm font-medium">받은 요청 ({taskCounts.total})</CardTitle>
+                <CardTitle className="text-sm font-medium">새 업무 ({newTasks.length})</CardTitle>
               </div>
             </div>
             <ClipboardList className="h-4 w-4 text-muted-foreground" />
@@ -77,8 +95,8 @@ export default function ClientDashboardPage() {
               gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
               gridAutoRows: '140px'
             }}>
-              {assignedTasks && assignedTasks.length > 0 ? (
-                assignedTasks.map((task) => (
+              {newTasks.length > 0 ? (
+                newTasks.map((task) => (
                   <div 
                     key={task.id} 
                     className={`p-3 bg-muted/50 rounded-lg border-[3px] ${getStatusBorderColor(task.status)} font-medium shadow-sm cursor-pointer hover:bg-muted hover:shadow-md transition-all flex flex-col items-center justify-center gap-2 text-center relative overflow-hidden`}
@@ -92,7 +110,7 @@ export default function ClientDashboardPage() {
                   </div>
                 ))
               ) : (
-                <p className="text-xs text-muted-foreground col-span-full text-center py-8">받은 업무가 없습니다</p>
+                <p className="text-xs text-muted-foreground col-span-full text-center py-8">새로 받은 업무가 없습니다</p>
               )}
             </div>
           </CardContent>

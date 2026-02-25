@@ -214,12 +214,12 @@ export function BatchRequestModal({
                 className="w-full justify-start"
                 onClick={() => setStep("attach")}
               >
-                기존 업무에 S3 붙이기
+                기존 업무에 붙이기
               </Button>
             )}
             {!canNewTask && !canAttach && (
               <p className="text-sm text-muted-foreground">
-                S3를 1건 이상 선택하면 새 업무로 요청하거나, 업무를 선택한 뒤 기존 업무에 S3를 붙일 수 있습니다.
+                S3를 1건 이상 선택하면 새 업무로 요청하거나, 업무를 선택한 뒤 기존 업무에 작업을 붙일 수 있습니다.
               </p>
             )}
           </div>

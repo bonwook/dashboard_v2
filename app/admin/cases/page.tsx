@@ -95,6 +95,7 @@ export default function WorklistPage() {
   const [isDragOverBtn, setIsDragOverBtn] = useState(false)
   const dragStateRef = useRef<{ startX: number; startY: number; started: boolean; rows: Set<string>; files: S3UpdateRow[] } | null>(null)
   const dropBtnRef = useRef<HTMLDivElement>(null)
+  const batchRequestOpenRef = useRef(false)
   const [rubberBandActive, setRubberBandActive] = useState(false)
   const [rubberBandRect, setRubberBandRect] = useState<{ x: number; y: number; w: number; h: number } | null>(null)
   const rubberBandStartRef = useRef<{ x: number; y: number } | null>(null)
@@ -284,9 +285,16 @@ export default function WorklistPage() {
     filterTasks()
   }, [filterTasks])
 
+  // batchRequestOpen 상태를 ref에 동기화 (클로저 문제 방지)
+  useEffect(() => {
+    batchRequestOpenRef.current = batchRequestOpen
+  }, [batchRequestOpen])
+
   // 전체 페이지 고무밴드: mousedown → drag → mouseup
   useEffect(() => {
     const onDown = (e: MouseEvent) => {
+      // 모달이 열려 있을 때는 rubber band 비활성화
+      if (batchRequestOpenRef.current) return
       const target = e.target as HTMLElement
       // 인터랙티브 요소, 드래그 가능한 행([data-draggable-row]), 기타 예외 영역 제외
       if (target.closest("button, a, input, textarea, select, [role='checkbox'], th, label, [data-no-rubber], [data-draggable-row]")) return
