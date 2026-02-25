@@ -38,6 +38,7 @@ import { parseDateOnly } from "@/lib/utils/dateHelpers"
 import { FileListItem } from "./components/FileListItem"
 import { StaffSessionBlock } from "./components/StaffSessionBlock"
 import { S3BucketInfoCard } from "@/components/s3-bucket-info-card"
+import { TaskS3BucketCard } from "@/components/task-s3-bucket-card"
 import { useSubtaskCompletion } from "@/lib/hooks/useSubtaskCompletion"
 import { useContentEditor } from "@/lib/hooks/useContentEditor"
 import type { Task, Subtask, S3UpdateForTask } from "@/lib/types"
@@ -1131,7 +1132,7 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
       </div>
 
       {s3Updates.length > 0
-        ? <div className="space-y-4 mb-6">{s3Updates.map((u) => <S3BucketInfoCard key={u.id} s3Update={u} />)}</div>
+        ? <TaskS3BucketCard taskTitle={task?.title ?? ""} s3Updates={s3Updates} />
         : s3Update && <S3BucketInfoCard s3Update={s3Update} />}
 
       <Card className="mb-6">

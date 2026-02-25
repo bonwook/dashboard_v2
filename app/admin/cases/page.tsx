@@ -519,8 +519,8 @@ export default function WorklistPage() {
                         <TableHead className="w-[70px] shrink-0 text-center">할당</TableHead>
                         <TableHead className="w-[11%] min-w-[80px]">요청자</TableHead>
                         <TableHead className="w-[11%] min-w-[80px]">담당자</TableHead>
-                        <TableHead className="w-[90px] shrink-0 text-center">생성일</TableHead>
                         <TableHead className="w-[72px] shrink-0 text-center">우선순위</TableHead>
+                        <TableHead className="w-[90px] shrink-0 text-center">생성일</TableHead>
                         <TableHead className="w-[90px] shrink-0 text-center">마감일</TableHead>
                         <TableHead className="w-[80px] shrink-0" />
                       </TableRow>
@@ -555,10 +555,10 @@ export default function WorklistPage() {
                               </TableCell>
                               <TableCell className="min-w-0 truncate" title={getBucketName(row) || "-"}>{getBucketName(row) || "-"}</TableCell>
                               <TableCell className="min-w-0 truncate">미지정</TableCell>
+                              <TableCell className="min-w-0 text-center shrink-0">-</TableCell>
                               <TableCell className="text-sm text-muted-foreground shrink-0 whitespace-nowrap text-center">
                                 {formatDate(row.upload_time || row.created_at)}
                               </TableCell>
-                              <TableCell className="min-w-0 text-center shrink-0">-</TableCell>
                               <TableCell className="text-sm text-muted-foreground shrink-0 whitespace-nowrap text-center">-</TableCell>
                               <TableCell className="w-[80px] text-right" onClick={(e) => e.stopPropagation()}>
                                 {(me?.role === "staff") && (
@@ -599,8 +599,8 @@ export default function WorklistPage() {
                                 </TableCell>
                                 <TableCell className="min-w-0 truncate" title={task.assigned_by_name || task.assigned_by_email || ""}>{task.assigned_by_name || task.assigned_by_email || "Unknown"}</TableCell>
                                 <TableCell className="min-w-0 truncate" title={task.assigned_to_name || task.assigned_to_email || ""}>{task.assigned_to_name || task.assigned_to_email || "Unknown"}</TableCell>
-                                <TableCell className="text-sm text-muted-foreground shrink-0 whitespace-nowrap text-center">{formatDate(task.created_at)}</TableCell>
                                 <TableCell className="shrink-0 text-center">{getPriorityBadge(task.priority)}</TableCell>
+                                <TableCell className="text-sm text-muted-foreground shrink-0 whitespace-nowrap text-center">{formatDate(task.created_at)}</TableCell>
                                 <TableCell className={`text-sm shrink-0 whitespace-nowrap text-center ${expired ? "text-red-600 font-medium" : "text-muted-foreground"}`}>
                                   {task.due_date ? (
                                     <>
@@ -633,9 +633,9 @@ export default function WorklistPage() {
                                   onClick={() => router.push(`/admin/cases/s3-update/${row.id}`)}
                                 >
                                   <TableCell className="w-10 px-2" />
-                                  <TableCell className="font-medium pl-8 align-top py-1.5 text-sm text-muted-foreground min-w-0">
+                                  <TableCell className="font-medium pl-8 align-middle py-1.5 text-sm text-muted-foreground min-w-0">
                                     <span className="font-mono text-emerald-600/80 mr-2 shrink-0" aria-hidden>└</span>
-                                    <span className="truncate inline-block max-w-full align-bottom" title={row.file_name}>{row.file_name}</span>
+                                    <span className="truncate inline-block max-w-full align-middle" title={row.file_name}>{row.file_name}</span>
                                   </TableCell>
                                   <TableCell colSpan={6} className="py-1.5" />
                                   <TableCell className="w-[80px] py-1.5 text-right" onClick={(e) => e.stopPropagation()}>
@@ -679,8 +679,8 @@ export default function WorklistPage() {
                             </TableCell>
                             <TableCell className="min-w-0 truncate" title={task.assigned_by_name || task.assigned_by_email || ""}>{task.assigned_by_name || task.assigned_by_email || "Unknown"}</TableCell>
                             <TableCell className="min-w-0 truncate" title={task.assigned_to_name || task.assigned_to_email || ""}>{task.assigned_to_name || task.assigned_to_email || "Unknown"}</TableCell>
-                            <TableCell className="text-sm text-muted-foreground shrink-0 whitespace-nowrap text-center">{formatDate(task.created_at)}</TableCell>
                             <TableCell className="shrink-0 text-center">{getPriorityBadge(task.priority)}</TableCell>
+                            <TableCell className="text-sm text-muted-foreground shrink-0 whitespace-nowrap text-center">{formatDate(task.created_at)}</TableCell>
                             <TableCell className={`text-sm shrink-0 whitespace-nowrap text-center ${expired ? "text-red-600 font-medium" : "text-muted-foreground"}`}>
                               {task.due_date ? (
                                 <>
@@ -734,8 +734,8 @@ export default function WorklistPage() {
                                 </TableCell>
                                 <TableCell className="text-center min-w-0 truncate">{task.assigned_by_name || task.assigned_by_email || "Unknown"}</TableCell>
                                 <TableCell className="text-center min-w-0 truncate">{task.assigned_to_name || task.assigned_to_email || "Unknown"}</TableCell>
-                                <TableCell className="text-sm text-muted-foreground text-center shrink-0 whitespace-nowrap">{formatDate(task.created_at)}</TableCell>
                                 <TableCell className="text-center shrink-0">{getPriorityBadge(task.priority)}</TableCell>
+                                <TableCell className="text-sm text-muted-foreground text-center shrink-0 whitespace-nowrap">{formatDate(task.created_at)}</TableCell>
                                 <TableCell className="text-sm text-muted-foreground text-center shrink-0 whitespace-nowrap">{task.due_date ? formatDateOnly(task.due_date) : "-"}</TableCell>
                                 <TableCell className="w-[80px] text-center" />
                               </TableRow>

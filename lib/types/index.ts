@@ -126,12 +126,13 @@ export interface Subtask {
   completed_at: string | null
 }
 
-/** S3 건 연결 시 표시용 (케이스 상세 등) */
+/** S3 건 연결 시 표시용 (케이스 상세 등). metadata는 케이스 그룹핑/표시용 */
 export interface S3UpdateForTask {
   id: number
   file_name: string
   bucket_name?: string | null
   file_size?: number | null
+  metadata?: Record<string, unknown> | string | null
   upload_time?: string | null
   created_at: string
   s3_key: string

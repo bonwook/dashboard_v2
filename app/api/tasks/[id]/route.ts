@@ -179,7 +179,7 @@ export async function GET(
       let s3Updates: Array<Record<string, unknown> & { s3_key: string }> = []
       try {
         const s3Rows = await query(
-          `SELECT id, file_name, bucket_name, file_size, upload_time, created_at, task_id FROM s3_updates WHERE task_id = ? ORDER BY created_at ASC`,
+          `SELECT id, file_name, bucket_name, file_size, metadata, upload_time, created_at, task_id FROM s3_updates WHERE task_id = ? ORDER BY created_at ASC`,
           [taskId]
         )
         if (s3Rows && s3Rows.length > 0) {
