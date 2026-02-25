@@ -62,6 +62,7 @@ function getAssigneeColorClass(name: string | undefined): string {
 export default function CaseDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const [task, setTask] = useState<Task | null>(null)
   const [s3Update, setS3Update] = useState<S3UpdateForTask | null>(null)
+  const [s3Updates, setS3Updates] = useState<S3UpdateForTask[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const router = useRouter()
   const [taskId, setTaskId] = useState<string | null>(null)
@@ -248,6 +249,7 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
         const data = await response.json()
         setTask(data.task)
         setS3Update(data.s3Update ?? null)
+        setS3Updates(Array.isArray(data.s3Updates) ? data.s3Updates : data.s3Update ? [data.s3Update] : [])
         setSelectedDueDate(parseDateOnly(data.task.due_date) ?? null)
       } catch (error) {
         console.error("Failed to load task:", error)
@@ -365,10 +367,16 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
   }, [toast])
 
   /** S3 연결 건: presigned(s3_key)는 버킷 카드에서만 다운로드 → 첨부파일 목록에서는 제외 */
+  const s3KeySetForExclude = useMemo(() => {
+    const set = new Set<string>()
+    if (s3Updates.length) s3Updates.forEach((u) => set.add(u.s3_key))
+    else if (s3Update?.s3_key) set.add(s3Update.s3_key)
+    return set
+  }, [s3Update?.s3_key, s3Updates])
   const resolvedFileKeysForDisplay = useMemo(() => {
-    if (!s3Update?.s3_key) return resolvedFileKeys
-    return resolvedFileKeys.filter((f) => f.s3Key !== s3Update.s3_key)
-  }, [resolvedFileKeys, s3Update?.s3_key])
+    if (s3KeySetForExclude.size === 0) return resolvedFileKeys
+    return resolvedFileKeys.filter((f) => !s3KeySetForExclude.has(f.s3Key))
+  }, [resolvedFileKeys, s3KeySetForExclude])
 
   const reloadTask = useCallback(async () => {
     if (!taskId) return
@@ -1122,7 +1130,9 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
         </Button>
       </div>
 
-      {s3Update && <S3BucketInfoCard s3Update={s3Update} />}
+      {s3Updates.length > 0
+        ? <div className="space-y-4 mb-6">{s3Updates.map((u) => <S3BucketInfoCard key={u.id} s3Update={u} />)}</div>
+        : s3Update && <S3BucketInfoCard s3Update={s3Update} />}
 
       <Card className="mb-6">
         <CardHeader className="pb-0.5 pt-3">
@@ -2819,9 +2829,9 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
                     const groupSubtaskIds = new Set(group.tasks.map((t) => t.id))
                     const selectedIdInGroup = selectedSubtaskIdBySubtitle[group.subtitle] ?? null
                     // 요청자 첨부: 담당자 선택 시 해당 담당자(subtask) 것만, 미선택 시 그룹 전체. s3Key 기준 중복 제거. presigned(s3_key) 제외
-                    const presignedKey = s3Update?.s3_key ?? null
+                    const presignedKeys = s3KeySetForExclude
                     const groupRequesterFilesRaw = resolvedSubtaskFileKeys.filter((f) => {
-                      if (presignedKey && f.s3Key === presignedKey) return false
+                      if (presignedKeys.has(f.s3Key)) return false
                       if (!groupSubtaskIds.has(f.subtaskId) || f.assignedToName !== "요청자") return false
                       if (selectedIdInGroup) return f.subtaskId === selectedIdInGroup
                       return true
@@ -2830,7 +2840,7 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
                       new Map(groupRequesterFilesRaw.map((f) => [f.s3Key, f])).values()
                     )
                     const groupAssigneeFiles = resolvedSubtaskFileKeys.filter((f) => {
-                      if (presignedKey && f.s3Key === presignedKey) return false
+                      if (presignedKeys.has(f.s3Key)) return false
                       return groupSubtaskIds.has(f.subtaskId) && f.assignedToName !== "요청자"
                     })
                     const hasRequester = resolvedFileKeysForDisplay.length > 0

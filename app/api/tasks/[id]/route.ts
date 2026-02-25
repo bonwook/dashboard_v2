@@ -175,20 +175,24 @@ export async function GET(
         return NextResponse.json({ error: "권한이 없습니다" }, { status: 403 })
       }
 
-      // s3Update는 한 번만 조회 (정상/에러 응답 공통)
-      let s3Update: Record<string, unknown> | null = null
+      // task에 연결된 S3 건 전부 조회 (다중 S3 → 1 task 지원)
+      let s3Updates: Array<Record<string, unknown> & { s3_key: string }> = []
       try {
         const s3Rows = await query(
-          `SELECT id, file_name, bucket_name, file_size, upload_time, created_at, task_id FROM s3_updates WHERE task_id = ? LIMIT 1`,
+          `SELECT id, file_name, bucket_name, file_size, upload_time, created_at, task_id FROM s3_updates WHERE task_id = ? ORDER BY created_at ASC`,
           [taskId]
         )
         if (s3Rows && s3Rows.length > 0) {
-          const r = s3Rows[0] as { file_name: string; bucket_name?: string | null }
-          s3Update = { ...s3Rows[0], s3_key: toS3Key(r) }
+          s3Updates = s3Rows.map((row: any) => {
+            const r = row as { file_name: string; bucket_name?: string | null }
+            return { ...row, s3_key: toS3Key(r) }
+          })
         }
       } catch {
         // s3_updates 없거나 컬럼 없으면 무시
       }
+      const s3Update = s3Updates.length > 0 ? s3Updates[0] : null
+      const s3KeySet = new Set(s3Updates.map((u) => u.s3_key))
 
       // file_keys, comment_file_keys: task_file_attachments 우선, 없으면 기존 JSON + user_files
       try {
@@ -209,7 +213,6 @@ export async function GET(
           ])
           fileKeysWithDates = fk
           commentFileKeysWithDates = cfk
-          // 백필: 다음 조회부터 task_file_attachments 사용 (uploaded_at은 업무 생성일 이전이 되지 않도록)
           if (fileKeys.length > 0 || commentFileKeys.length > 0) {
             try {
               const taskCreatedAt = task.created_at ? new Date(task.created_at) : null
@@ -219,9 +222,7 @@ export async function GET(
             }
           }
         }
-        // s3_update(presigned) 파일은 요청자 첨부 목록에서 제외 → 버킷 카드 다운로드로만 제공
-        const s3Key = s3Update && typeof (s3Update as { s3_key?: string }).s3_key === "string" ? (s3Update as { s3_key: string }).s3_key : null
-        const filteredFileKeys = s3Key ? fileKeysWithDates.filter((f) => f.key !== s3Key) : fileKeysWithDates
+        const filteredFileKeys = s3KeySet.size > 0 ? fileKeysWithDates.filter((f) => !s3KeySet.has(f.key)) : fileKeysWithDates
         return NextResponse.json({
           task: {
             ...task,
@@ -230,6 +231,7 @@ export async function GET(
             shared_with: [],
           },
           ...(s3Update ? { s3Update } : {}),
+          ...(s3Updates.length > 0 ? { s3Updates } : {}),
         })
       } catch {
         return NextResponse.json({
@@ -240,6 +242,7 @@ export async function GET(
             shared_with: [],
           },
           ...(s3Update ? { s3Update } : {}),
+          ...(s3Updates.length > 0 ? { s3Updates } : {}),
         })
       }
     }
@@ -503,27 +506,26 @@ export async function PATCH(
       const rawCommentKeys = Array.isArray(comment_file_keys) ? comment_file_keys : []
       const commentSet = new Set(rawCommentKeys.filter((k) => typeof k === "string" && k))
 
-      // 이 task에 연결된 S3 presigned 키는 file_keys에 넣지 않음(버킷 카드에서만 다운로드)
-      let presignedKey: string | null = null
+      // 이 task에 연결된 S3 presigned 키들은 file_keys에 넣지 않음
+      const presignedKeySet = new Set<string>()
       try {
-        const s3Row = await query(
-          "SELECT file_name, bucket_name FROM s3_updates WHERE task_id = ? LIMIT 1",
+        const s3Rows = await query(
+          "SELECT file_name, bucket_name FROM s3_updates WHERE task_id = ?",
           [taskId]
         )
-        if (s3Row && s3Row.length > 0) {
-          presignedKey = toS3Key(s3Row[0] as { file_name: string; bucket_name?: string | null })
+        for (const row of s3Rows || []) {
+          presignedKeySet.add(toS3Key(row as { file_name: string; bucket_name?: string | null }))
         }
       } catch {
         // s3_updates 없거나 컬럼 없으면 무시
       }
 
-      // file_keys 중복 제거 + comment_file_keys와 겹치는 키 제거 + presigned 키 제외
       const deduped: string[] = []
       const seen = new Set<string>()
       for (const k of rawFileKeys) {
         const key = typeof k === "string" ? k : ""
         if (!key) continue
-        if (presignedKey && key === presignedKey) continue
+        if (presignedKeySet.has(key)) continue
         if (commentSet.has(key)) continue
         if (seen.has(key)) continue
         seen.add(key)
@@ -765,15 +767,14 @@ async function handleSubtaskUpdate(
     const rawCommentKeys = Array.isArray(comment_file_keys) ? comment_file_keys : []
     const commentSet = new Set(rawCommentKeys.filter((k) => typeof k === "string" && k))
 
-    // 메인 task에 연결된 S3 presigned 키는 file_keys에 넣지 않음
-    let presignedKey: string | null = null
+    const presignedKeySet = new Set<string>()
     try {
-      const s3Row = await query(
-        "SELECT file_name, bucket_name FROM s3_updates WHERE task_id = ? LIMIT 1",
+      const s3Rows = await query(
+        "SELECT file_name, bucket_name FROM s3_updates WHERE task_id = ?",
         [subtask.task_id]
       )
-      if (s3Row && s3Row.length > 0) {
-        presignedKey = toS3Key(s3Row[0] as { file_name: string; bucket_name?: string | null })
+      for (const row of s3Rows || []) {
+        presignedKeySet.add(toS3Key(row as { file_name: string; bucket_name?: string | null }))
       }
     } catch {
       // ignore
@@ -784,7 +785,7 @@ async function handleSubtaskUpdate(
     for (const k of rawFileKeys) {
       const key = typeof k === "string" ? k : ""
       if (!key) continue
-      if (presignedKey && key === presignedKey) continue
+      if (presignedKeySet.has(key)) continue
       if (commentSet.has(key)) continue
       if (seen.has(key)) continue
       seen.add(key)

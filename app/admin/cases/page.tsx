@@ -15,6 +15,7 @@ import Link from "next/link"
 import { Fragment } from "react"
 import { useToast } from "@/hooks/use-toast"
 import { UploadSection } from "./components/UploadSection"
+import { BatchRequestModal } from "./components/BatchRequestModal"
 import { isTaskExpired, getDaysOverdue } from "@/lib/utils/taskHelpers"
 import { parseFlexibleDate } from "@/lib/utils/dateHelpers"
 import type { Task, S3UpdateRow } from "@/lib/types"
@@ -84,6 +85,7 @@ export default function WorklistPage() {
   const [uploadLoading, setUploadLoading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [selectedRowIds, setSelectedRowIds] = useState<Set<string>>(new Set())
+  const [batchRequestOpen, setBatchRequestOpen] = useState(false)
   const router = useRouter()
   const searchParams = useSearchParams()
   const { toast } = useToast()
@@ -282,21 +284,34 @@ export default function WorklistPage() {
   const filteredInProgress = useMemo(() => filteredTasks.filter((t) => t.status !== "completed"), [filteredTasks])
   const filteredCompleted = useMemo(() => filteredTasks.filter((t) => t.status === "completed"), [filteredTasks])
 
-  type WorklistEntry = { type: "s3"; s3: S3UpdateRow } | { type: "s3_with_task"; s3: S3UpdateRow; task: Task } | { type: "task"; task: Task }
+  type WorklistEntry =
+    | { type: "s3"; s3: S3UpdateRow }
+    | { type: "task_with_s3_group"; task: Task; s3List: S3UpdateRow[] }
+    | { type: "task"; task: Task }
   const worklistEntries = useMemo((): WorklistEntry[] => {
-    const taskIdsShownUnderS3 = new Set<string>()
     const entries: WorklistEntry[] = []
+    const s3ByTaskId = new Map<string, S3UpdateRow[]>()
+    const unassignedS3: S3UpdateRow[] = []
+
     for (const s3 of filteredS3Updates) {
-      const task = s3.task_id ? filteredInProgress.find((t) => t.id === String(s3.task_id)) : null
-      if (task) {
-        taskIdsShownUnderS3.add(task.id)
-        entries.push({ type: "s3_with_task", s3, task })
+      const tid = s3.task_id ? String(s3.task_id) : null
+      if (tid) {
+        if (!s3ByTaskId.has(tid)) s3ByTaskId.set(tid, [])
+        s3ByTaskId.get(tid)!.push(s3)
       } else {
-        entries.push({ type: "s3", s3 })
+        unassignedS3.push(s3)
       }
     }
+
+    const taskIdsWithS3 = new Set(s3ByTaskId.keys())
+    for (const s3 of unassignedS3) {
+      entries.push({ type: "s3", s3 })
+    }
     for (const task of filteredInProgress) {
-      if (!taskIdsShownUnderS3.has(task.id)) {
+      const s3List = s3ByTaskId.get(task.id)
+      if (s3List && s3List.length > 0) {
+        entries.push({ type: "task_with_s3_group", task, s3List })
+      } else if (!taskIdsWithS3.has(task.id)) {
         entries.push({ type: "task", task })
       }
     }
@@ -402,6 +417,15 @@ export default function WorklistPage() {
     return `${yy}.${mm}.${dd} ${hh}:${min}`
   }
 
+  const formatDateOnly = (dateString: string) => {
+    const date = parseFlexibleDate(dateString)
+    if (!date) return "-"
+    const yy = String(date.getFullYear()).slice(-2)
+    const mm = String(date.getMonth() + 1).padStart(2, "0")
+    const dd = String(date.getDate()).padStart(2, "0")
+    return `${yy}.${mm}.${dd}`
+  }
+
   return (
     <div className="mx-auto max-w-7xl p-6">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
@@ -487,19 +511,18 @@ export default function WorklistPage() {
               ) : (
                 <>
                 <div className="overflow-x-auto">
-                  <Table className="w-full">
+                  <Table className="w-full table-fixed">
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="w-10 px-2" />
-                        <TableHead className="min-w-[380px]">제목</TableHead>
-                        <TableHead className="w-[80px] text-center">S3</TableHead>
-                        <TableHead className="w-[70px] text-center">할당</TableHead>
-                        <TableHead>요청자</TableHead>
-                        <TableHead>담당자</TableHead>
-                        <TableHead>우선순위</TableHead>
-                        <TableHead>생성일</TableHead>
-                        <TableHead>마감일</TableHead>
-                        <TableHead className="w-[80px]">삭제</TableHead>
+                        <TableHead className="w-10 shrink-0 px-2" />
+                        <TableHead className="w-[30%] min-w-[200px] max-w-[380px]">제목</TableHead>
+                        <TableHead className="w-[70px] shrink-0 text-center">할당</TableHead>
+                        <TableHead className="w-[11%] min-w-[80px]">요청자</TableHead>
+                        <TableHead className="w-[11%] min-w-[80px]">담당자</TableHead>
+                        <TableHead className="w-[90px] shrink-0 text-center">생성일</TableHead>
+                        <TableHead className="w-[72px] shrink-0 text-center">우선순위</TableHead>
+                        <TableHead className="w-[90px] shrink-0 text-center">마감일</TableHead>
+                        <TableHead className="w-[80px] shrink-0" />
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -519,28 +542,25 @@ export default function WorklistPage() {
                                   aria-label={`${row.file_name} 선택`}
                                 />
                               </TableCell>
-                              <TableCell className="font-medium align-top min-w-[380px] max-w-[520px] py-2">
-                                <div className="text-sm">{row.file_name}</div>
+                              <TableCell className="font-medium align-top py-2 min-w-0">
+                                <div className="text-sm truncate" title={row.file_name}>{row.file_name}</div>
                                 {row.metadata != null && formatS3Metadata(row.metadata) && (
-                                  <div className="text-[0.65rem] leading-tight text-muted-foreground mt-0.5 max-w-full break-words whitespace-normal" title={formatS3Metadata(row.metadata)}>
+                                  <div className="text-[0.65rem] leading-tight text-muted-foreground mt-0.5 max-w-full line-clamp-2" title={formatS3Metadata(row.metadata)}>
                                     {formatS3Metadata(row.metadata)}
                                   </div>
                                 )}
                               </TableCell>
                               <TableCell className="text-center">
-                                <span className="inline-block w-2 h-2 rounded-full bg-amber-500/80 shrink-0" aria-label="S3" />
-                              </TableCell>
-                              <TableCell className="text-center">
                                 <Badge className="bg-amber-500/10 text-amber-600 font-normal">미할당</Badge>
                               </TableCell>
-                              <TableCell>{getBucketName(row) || "-"}</TableCell>
-                              <TableCell>미지정</TableCell>
-                              <TableCell>-</TableCell>
-                              <TableCell className="text-sm text-muted-foreground">
+                              <TableCell className="min-w-0 truncate" title={getBucketName(row) || "-"}>{getBucketName(row) || "-"}</TableCell>
+                              <TableCell className="min-w-0 truncate">미지정</TableCell>
+                              <TableCell className="text-sm text-muted-foreground shrink-0 whitespace-nowrap text-center">
                                 {formatDate(row.upload_time || row.created_at)}
                               </TableCell>
-                              <TableCell className="text-sm text-muted-foreground">-</TableCell>
-                              <TableCell onClick={(e) => e.stopPropagation()}>
+                              <TableCell className="min-w-0 text-center shrink-0">-</TableCell>
+                              <TableCell className="text-sm text-muted-foreground shrink-0 whitespace-nowrap text-center">-</TableCell>
+                              <TableCell className="w-[80px] text-right" onClick={(e) => e.stopPropagation()}>
                                 {(me?.role === "staff") && (
                                   <Button
                                     variant="ghost"
@@ -556,88 +576,35 @@ export default function WorklistPage() {
                             </TableRow>
                           )
                         }
-                        if (entry.type === "s3_with_task") {
-                          const { s3: row, task } = entry
+                        if (entry.type === "task_with_s3_group") {
+                          const { task, s3List } = entry
                           const expired = isTaskExpired(task)
                           return (
-                            <Fragment key={`s3-task-${row.id}-${task.id}`}>
+                            <Fragment key={`group-${task.id}`}>
                               <TableRow
-                                key={`s3-${row.id}`}
-                                className="cursor-pointer hover:bg-accent/50 bg-emerald-500/5 border-l-4 border-l-emerald-500/50 border-t border-t-emerald-500/30"
-                                onClick={() => router.push(`/admin/cases/s3-update/${row.id}`)}
-                              >
-                                <TableCell className="w-10 px-2 align-top" onClick={(e) => e.stopPropagation()}>
-                                  <Checkbox
-                                    checked={selectedRowIds.has(`s3-${row.id}`)}
-                                    onCheckedChange={() => toggleRowSelection(`s3-${row.id}`)}
-                                    aria-label={`${row.file_name} 선택`}
-                                  />
-                                </TableCell>
-                                <TableCell className="font-medium align-top min-w-[380px] max-w-[520px] py-2">
-                                  <div className="text-sm">{row.file_name}</div>
-                                  {row.metadata != null && formatS3Metadata(row.metadata) && (
-                                    <div className="text-[0.65rem] leading-tight text-muted-foreground mt-0.5 max-w-full break-words whitespace-normal" title={formatS3Metadata(row.metadata)}>
-                                      {formatS3Metadata(row.metadata)}
-                                    </div>
-                                  )}
-                                </TableCell>
-                                <TableCell className="text-center">
-                                  <span className="inline-block w-2 h-2 rounded-full bg-emerald-500/80 shrink-0" aria-label="S3 연결됨" />
-                                </TableCell>
-                                <TableCell className="text-center">
-                                  <Badge className="bg-emerald-500/15 text-emerald-700 font-normal border border-emerald-500/40">할당</Badge>
-                                </TableCell>
-                                <TableCell>{getBucketName(row) || "-"}</TableCell>
-                                <TableCell>미지정</TableCell>
-                                <TableCell>-</TableCell>
-                                <TableCell className="text-sm text-muted-foreground">
-                                  {formatDate(row.upload_time || row.created_at)}
-                                </TableCell>
-                                <TableCell className="text-sm text-muted-foreground">-</TableCell>
-                                <TableCell onClick={(e) => e.stopPropagation()}>
-                                  {(me?.role === "staff") && (
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      onClick={(e) => handleDeleteS3Update(String(row.id), e)}
-                                      className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                                      title="S3 업무 삭제"
-                                    >
-                                      <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                  )}
-                                </TableCell>
-                              </TableRow>
-                              <TableRow
-                                key={`task-${task.id}`}
-                                className={`cursor-pointer hover:bg-accent/50 bg-emerald-500/[0.06] border-l-4 border-l-emerald-500/30 ${expired ? "bg-red-500/5" : ""}`}
+                                className={`cursor-pointer hover:bg-accent/50 bg-emerald-500/6 border-l-4 border-l-emerald-500/50 ${expired ? "bg-red-500/5" : ""}`}
                                 onClick={() => router.push(`/admin/cases/${task.id}`)}
                               >
-                                <TableCell className="w-10 px-2" onClick={(e) => e.stopPropagation()}>
-                                  <Checkbox
-                                    checked={selectedRowIds.has(`task-${task.id}`)}
-                                    onCheckedChange={() => toggleRowSelection(`task-${task.id}`)}
-                                    aria-label={`${task.title} 선택`}
-                                  />
-                                </TableCell>
-                                <TableCell className="font-medium pl-10">
-                                  <span className="text-emerald-600/90 font-mono mr-2" aria-hidden>ㄴ</span>
-                                  {task.title}
-                                </TableCell>
-                                <TableCell className="text-center">
-                                  <span className="inline-block w-2 h-2 rounded-full bg-emerald-500/80 shrink-0" aria-label="S3 연결" />
+                                <TableCell className="w-10 px-2" />
+                                <TableCell className="font-medium py-2 min-w-0">
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <span className="truncate" title={task.title}>{task.title}</span>
+                                    <Badge variant="secondary" className="font-normal text-xs shrink-0">
+                                      S3 {s3List.length}건
+                                    </Badge>
+                                  </div>
                                 </TableCell>
                                 <TableCell className="text-center">
                                   <Badge className="bg-emerald-500/15 text-emerald-700 font-normal border border-emerald-500/40">할당</Badge>
                                 </TableCell>
-                                <TableCell>{task.assigned_by_name || task.assigned_by_email || "Unknown"}</TableCell>
-                                <TableCell>{task.assigned_to_name || task.assigned_to_email || "Unknown"}</TableCell>
-                                <TableCell>{getPriorityBadge(task.priority)}</TableCell>
-                                <TableCell className="text-sm text-muted-foreground">{formatDate(task.created_at)}</TableCell>
-                                <TableCell className={`text-sm ${expired ? "text-red-600 font-medium" : "text-muted-foreground"}`}>
+                                <TableCell className="min-w-0 truncate" title={task.assigned_by_name || task.assigned_by_email || ""}>{task.assigned_by_name || task.assigned_by_email || "Unknown"}</TableCell>
+                                <TableCell className="min-w-0 truncate" title={task.assigned_to_name || task.assigned_to_email || ""}>{task.assigned_to_name || task.assigned_to_email || "Unknown"}</TableCell>
+                                <TableCell className="text-sm text-muted-foreground shrink-0 whitespace-nowrap text-center">{formatDate(task.created_at)}</TableCell>
+                                <TableCell className="shrink-0 text-center">{getPriorityBadge(task.priority)}</TableCell>
+                                <TableCell className={`text-sm shrink-0 whitespace-nowrap text-center ${expired ? "text-red-600 font-medium" : "text-muted-foreground"}`}>
                                   {task.due_date ? (
                                     <>
-                                      {formatDate(task.due_date)}
+                                      {formatDateOnly(task.due_date)}
                                       {(() => {
                                         const daysOverdue = getDaysOverdue(task)
                                         return daysOverdue > 0 ? <span className="text-red-600 font-medium ml-1">+{daysOverdue}</span> : null
@@ -645,7 +612,7 @@ export default function WorklistPage() {
                                     </>
                                   ) : "-"}
                                 </TableCell>
-                                <TableCell onClick={(e) => e.stopPropagation()}>
+                                <TableCell className="w-[80px] text-right" onClick={(e) => e.stopPropagation()}>
                                   {(me?.id === task.assigned_by || me?.role === "staff") && (
                                     <Button
                                       variant="ghost"
@@ -659,6 +626,33 @@ export default function WorklistPage() {
                                   )}
                                 </TableCell>
                               </TableRow>
+                              {s3List.map((row) => (
+                                <TableRow
+                                  key={`s3-${row.id}`}
+                                  className="cursor-pointer hover:bg-accent/30 bg-emerald-500/5 border-l-4 border-l-emerald-500/30"
+                                  onClick={() => router.push(`/admin/cases/s3-update/${row.id}`)}
+                                >
+                                  <TableCell className="w-10 px-2" />
+                                  <TableCell className="font-medium pl-8 align-top py-1.5 text-sm text-muted-foreground min-w-0">
+                                    <span className="font-mono text-emerald-600/80 mr-2 shrink-0" aria-hidden>└</span>
+                                    <span className="truncate inline-block max-w-full align-bottom" title={row.file_name}>{row.file_name}</span>
+                                  </TableCell>
+                                  <TableCell colSpan={6} className="py-1.5" />
+                                  <TableCell className="w-[80px] py-1.5 text-right" onClick={(e) => e.stopPropagation()}>
+                                    {(me?.role === "staff") && (
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={(e) => handleDeleteS3Update(String(row.id), e)}
+                                        className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                        title="S3 업무 삭제"
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
+                                    )}
+                                  </TableCell>
+                                </TableRow>
+                              ))}
                             </Fragment>
                           )
                         }
@@ -677,21 +671,20 @@ export default function WorklistPage() {
                                 aria-label={`${task.title} 선택`}
                               />
                             </TableCell>
-                            <TableCell className="font-medium">{task.title}</TableCell>
-                            <TableCell className="text-center">
-                              <span className="text-muted-foreground">-</span>
+                            <TableCell className="font-medium min-w-0">
+                              <span className="truncate block" title={task.title}>{task.title}</span>
                             </TableCell>
-                            <TableCell className="text-center">
+                            <TableCell className="text-center shrink-0">
                               <Badge className="bg-emerald-500/15 text-emerald-700 font-normal border border-emerald-500/40">할당</Badge>
                             </TableCell>
-                            <TableCell>{task.assigned_by_name || task.assigned_by_email || "Unknown"}</TableCell>
-                            <TableCell>{task.assigned_to_name || task.assigned_to_email || "Unknown"}</TableCell>
-                            <TableCell>{getPriorityBadge(task.priority)}</TableCell>
-                            <TableCell className="text-sm text-muted-foreground">{formatDate(task.created_at)}</TableCell>
-                            <TableCell className={`text-sm ${expired ? "text-red-600 font-medium" : "text-muted-foreground"}`}>
+                            <TableCell className="min-w-0 truncate" title={task.assigned_by_name || task.assigned_by_email || ""}>{task.assigned_by_name || task.assigned_by_email || "Unknown"}</TableCell>
+                            <TableCell className="min-w-0 truncate" title={task.assigned_to_name || task.assigned_to_email || ""}>{task.assigned_to_name || task.assigned_to_email || "Unknown"}</TableCell>
+                            <TableCell className="text-sm text-muted-foreground shrink-0 whitespace-nowrap text-center">{formatDate(task.created_at)}</TableCell>
+                            <TableCell className="shrink-0 text-center">{getPriorityBadge(task.priority)}</TableCell>
+                            <TableCell className={`text-sm shrink-0 whitespace-nowrap text-center ${expired ? "text-red-600 font-medium" : "text-muted-foreground"}`}>
                               {task.due_date ? (
                                 <>
-                                  {formatDate(task.due_date)}
+                                  {formatDateOnly(task.due_date)}
                                   {(() => {
                                     const daysOverdue = getDaysOverdue(task)
                                     return daysOverdue > 0 ? <span className="text-red-600 font-medium ml-1">+{daysOverdue}</span> : null
@@ -699,7 +692,7 @@ export default function WorklistPage() {
                                 </>
                               ) : "-"}
                             </TableCell>
-                            <TableCell onClick={(e) => e.stopPropagation()}>
+                            <TableCell className="w-[80px] text-right" onClick={(e) => e.stopPropagation()}>
                               {(me?.id === task.assigned_by || me?.role === "staff") && (
                                 <Button
                                   variant="ghost"
@@ -719,7 +712,7 @@ export default function WorklistPage() {
                       {completedEntries.length > 0 && (
                         <>
                           <TableRow className="bg-slate-100/80 dark:bg-slate-800/50 hover:bg-slate-100/80 dark:hover:bg-slate-800/50 border-l-4 border-l-slate-400 dark:border-l-slate-500 [&>td]:bg-slate-100/80 dark:[&>td]:bg-slate-800/50">
-                            <TableCell colSpan={10} className="font-medium text-slate-600 dark:text-slate-400 py-2.5 text-center w-full min-w-0">
+                            <TableCell colSpan={9} className="font-medium text-slate-600 dark:text-slate-400 py-2.5 text-center w-full min-w-0">
                               — 완료된 작업 ({completedEntries.length}건) —
                             </TableCell>
                           </TableRow>
@@ -735,19 +728,16 @@ export default function WorklistPage() {
                                 <TableCell className="w-10 px-2 text-center">
                                   <CheckCircle2 className="h-5 w-5 text-slate-500 dark:text-slate-400 mx-auto" aria-label="완료" />
                                 </TableCell>
-                                <TableCell className="font-medium text-center">{task.title}</TableCell>
-                                <TableCell className="text-center">
-                                  <span className="text-muted-foreground">-</span>
-                                </TableCell>
+                                <TableCell className="font-medium text-center min-w-0 truncate" title={task.title}>{task.title}</TableCell>
                                 <TableCell className="text-center">
                                   <Badge className="bg-emerald-500/15 text-emerald-700 font-normal border border-emerald-500/40">할당</Badge>
                                 </TableCell>
-                                <TableCell className="text-center">{task.assigned_by_name || task.assigned_by_email || "Unknown"}</TableCell>
-                                <TableCell className="text-center">{task.assigned_to_name || task.assigned_to_email || "Unknown"}</TableCell>
-                                <TableCell className="text-center">{getPriorityBadge(task.priority)}</TableCell>
-                                <TableCell className="text-sm text-muted-foreground text-center">{formatDate(task.created_at)}</TableCell>
-                                <TableCell className="text-sm text-muted-foreground text-center">{task.due_date ? formatDate(task.due_date) : "-"}</TableCell>
-                                <TableCell className="text-center" />
+                                <TableCell className="text-center min-w-0 truncate">{task.assigned_by_name || task.assigned_by_email || "Unknown"}</TableCell>
+                                <TableCell className="text-center min-w-0 truncate">{task.assigned_to_name || task.assigned_to_email || "Unknown"}</TableCell>
+                                <TableCell className="text-sm text-muted-foreground text-center shrink-0 whitespace-nowrap">{formatDate(task.created_at)}</TableCell>
+                                <TableCell className="text-center shrink-0">{getPriorityBadge(task.priority)}</TableCell>
+                                <TableCell className="text-sm text-muted-foreground text-center shrink-0 whitespace-nowrap">{task.due_date ? formatDateOnly(task.due_date) : "-"}</TableCell>
+                                <TableCell className="w-[80px] text-center" />
                               </TableRow>
                             )
                           })}
@@ -768,10 +758,7 @@ export default function WorklistPage() {
                 variant="default"
                 size="lg"
                 className="cursor-pointer"
-                onClick={() => {
-                  // TODO: 일괄 요청 모달/API 연동
-                  toast({ title: "요청", description: "선택한 항목에 요청을 보낼 수 있습니다. (기능 연동 예정)" })
-                }}
+                onClick={() => setBatchRequestOpen(true)}
               >
                 요청
               </Button>
@@ -785,6 +772,17 @@ export default function WorklistPage() {
               </Button>
             </div>
           )}
+
+          <BatchRequestModal
+            open={batchRequestOpen}
+            onOpenChange={setBatchRequestOpen}
+            selectedRowIds={selectedRowIds}
+            tasks={filteredInProgress}
+            onSuccess={() => {
+              setSelectedRowIds(new Set())
+              loadTasks()
+            }}
+          />
 
     </div>
   )
