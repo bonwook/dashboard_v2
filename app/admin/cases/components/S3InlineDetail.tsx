@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, Fragment } from "react"
 import { Button } from "@/components/ui/button"
 import { Download, Loader2 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
@@ -98,10 +98,10 @@ export function S3InlineDetail({ row, toast }: Props) {
               </>
             )}
             {metaEntries.map(([k, v]) => (
-              <>
-                <dt key={`k-${k}`} className="text-muted-foreground font-medium whitespace-nowrap">{k}</dt>
-                <dd key={`v-${k}`} className="break-all">{v}</dd>
-              </>
+              <Fragment key={k}>
+                <dt className="text-muted-foreground font-medium whitespace-nowrap">{k}</dt>
+                <dd className="break-all">{v}</dd>
+              </Fragment>
             ))}
           </dl>
         )}
