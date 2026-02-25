@@ -9,13 +9,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Progress } from "@/components/ui/progress"
-import { Activity, RefreshCw, Search, Trash2, Plus, CheckCircle2, ChevronDown, ChevronRight } from "lucide-react"
+import { Activity, RefreshCw, Search, Trash2, Plus, CheckCircle2, ChevronDown, ChevronRight, Download } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Fragment } from "react"
 import { useToast } from "@/hooks/use-toast"
 import { UploadSection } from "./components/UploadSection"
 import Link from "next/link"
 import { BatchRequestModal } from "./components/BatchRequestModal"
+import { S3InlineDetail } from "./components/S3InlineDetail"
 import { isTaskExpired, getDaysOverdue } from "@/lib/utils/taskHelpers"
 import { parseFlexibleDate } from "@/lib/utils/dateHelpers"
 import type { Task, S3UpdateRow } from "@/lib/types"
@@ -84,6 +85,8 @@ export default function WorklistPage() {
   const [me, setMe] = useState<{ id: string; role?: string } | null>(null)
   const [uploadLoading, setUploadLoading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
+  /** 인라인 S3 상세 펼침 (row.id) */
+  const [expandedS3DetailId, setExpandedS3DetailId] = useState<number | null>(null)
   /** task_with_s3_group 하위 파일 행 펼침 여부 (task.id → expanded) */
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
   /** 고무밴드로 시각적으로 선택된 행 */
@@ -648,72 +651,81 @@ export default function WorklistPage() {
                       {worklistEntries.map((entry) => {
                         if (entry.type === "s3") {
                           const row = entry.s3
+                          const isDetailOpen = expandedS3DetailId === row.id
                           return (
-                            <TableRow
-                              key={`s3-${row.id}`}
-                              data-selectable-row={`s3-${row.id}`}
-                              data-draggable-row
-                              onMouseDown={(e) => {
-                                if (e.button !== 0) return
-                                if ((e.target as HTMLElement).closest("[data-checkbox]")) return
-                                const group = rubberSelectedIds.has(`s3-${row.id}`)
-                                  ? new Set(rubberSelectedIds)
-                                  : new Set([`s3-${row.id}`])
-                                const files = s3Updates.filter((u) => group.has(`s3-${u.id}`))
-                                dragStateRef.current = { startX: e.clientX, startY: e.clientY, started: false, rows: group, files }
-                              }}
-                              className={`cursor-grab hover:bg-accent/50 bg-amber-500/5 border-l-4 border-l-amber-500/50 border-t border-t-amber-500/20 ${rubberSelectedIds.has(`s3-${row.id}`) ? "ring-inset ring-1 ring-primary bg-primary/10" : ""}`}
-                              onClick={() => router.push(`/admin/cases/s3-update/${row.id}`)}
-                            >
-                              <TableCell className="w-10 px-2 align-top">
-                                <div
-                                  data-checkbox
-                                  className={`w-4 h-4 rounded-sm border flex items-center justify-center cursor-pointer transition-colors ${rubberSelectedIds.has(`s3-${row.id}`) ? "bg-primary border-primary" : "border-muted-foreground/30 hover:border-primary/60"}`}
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    setRubberSelectedIds((prev) => {
-                                      const next = new Set(prev)
-                                      if (next.has(`s3-${row.id}`)) next.delete(`s3-${row.id}`)
-                                      else next.add(`s3-${row.id}`)
-                                      return next
-                                    })
-                                  }}
-                                >
-                                  {rubberSelectedIds.has(`s3-${row.id}`) && <span className="text-primary-foreground text-[10px] leading-none">✓</span>}
-                                </div>
-                              </TableCell>
-                              <TableCell className="font-medium align-top py-2 min-w-0">
-                                <div className="text-sm truncate" title={row.file_name}>{row.file_name}</div>
-                                {row.metadata != null && formatS3Metadata(row.metadata) && (
-                                  <div className="text-[0.65rem] leading-tight text-muted-foreground mt-0.5 max-w-full line-clamp-2" title={formatS3Metadata(row.metadata)}>
-                                    {formatS3Metadata(row.metadata)}
-                                  </div>
-                                )}
-                              </TableCell>
-                              <TableCell className="text-center">
-                                <Badge className="bg-amber-500/10 text-amber-600 font-normal">미할당</Badge>
-                              </TableCell>
-                              <TableCell className="min-w-0 truncate" title={getBucketName(row) || "-"}>{getBucketName(row) || "-"}</TableCell>
-                              <TableCell className="min-w-0 truncate">미지정</TableCell>
-                              <TableCell className="min-w-0 text-center shrink-0">-</TableCell>
-                              <TableCell className="text-sm text-muted-foreground shrink-0 whitespace-nowrap text-center">
-                                {formatDate(row.upload_time || row.created_at)}
-                              </TableCell>
-                              <TableCell className="text-sm text-muted-foreground shrink-0 whitespace-nowrap text-center">-</TableCell>
-                              <TableCell className="w-[80px] text-right" onClick={(e) => e.stopPropagation()}>
-                                {(me?.role === "staff") && (
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={(e) => handleDeleteS3Update(String(row.id), e)}
-                                    className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                                    title="S3 업무 삭제"
+                            <Fragment key={`s3-${row.id}`}>
+                              <TableRow
+                                data-selectable-row={`s3-${row.id}`}
+                                data-draggable-row
+                                onMouseDown={(e) => {
+                                  if (e.button !== 0) return
+                                  if ((e.target as HTMLElement).closest("[data-checkbox]")) return
+                                  const group = rubberSelectedIds.has(`s3-${row.id}`)
+                                    ? new Set(rubberSelectedIds)
+                                    : new Set([`s3-${row.id}`])
+                                  const files = s3Updates.filter((u) => group.has(`s3-${u.id}`))
+                                  dragStateRef.current = { startX: e.clientX, startY: e.clientY, started: false, rows: group, files }
+                                }}
+                                className={`cursor-grab hover:bg-accent/50 bg-amber-500/5 border-l-4 border-l-amber-500/50 border-t border-t-amber-500/20 ${rubberSelectedIds.has(`s3-${row.id}`) ? "ring-inset ring-1 ring-primary bg-primary/10" : ""}`}
+                                onClick={() => setExpandedS3DetailId(isDetailOpen ? null : row.id)}
+                              >
+                                <TableCell className="w-10 px-2 align-top">
+                                  <div
+                                    data-checkbox
+                                    className={`w-4 h-4 rounded-sm border flex items-center justify-center cursor-pointer transition-colors ${rubberSelectedIds.has(`s3-${row.id}`) ? "bg-primary border-primary" : "border-muted-foreground/30 hover:border-primary/60"}`}
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      setRubberSelectedIds((prev) => {
+                                        const next = new Set(prev)
+                                        if (next.has(`s3-${row.id}`)) next.delete(`s3-${row.id}`)
+                                        else next.add(`s3-${row.id}`)
+                                        return next
+                                      })
+                                    }}
                                   >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                )}
-                              </TableCell>
-                            </TableRow>
+                                    {rubberSelectedIds.has(`s3-${row.id}`) && <span className="text-primary-foreground text-[10px] leading-none">✓</span>}
+                                  </div>
+                                </TableCell>
+                                <TableCell className="font-medium align-top py-2 min-w-0">
+                                  <div className="text-sm truncate" title={row.file_name}>{row.file_name}</div>
+                                  {row.metadata != null && formatS3Metadata(row.metadata) && (
+                                    <div className="text-[0.65rem] leading-tight text-muted-foreground mt-0.5 max-w-full line-clamp-2" title={formatS3Metadata(row.metadata)}>
+                                      {formatS3Metadata(row.metadata)}
+                                    </div>
+                                  )}
+                                </TableCell>
+                                <TableCell className="text-center">
+                                  <Badge className="bg-amber-500/10 text-amber-600 font-normal">미할당</Badge>
+                                </TableCell>
+                                <TableCell className="min-w-0 truncate" title={getBucketName(row) || "-"}>{getBucketName(row) || "-"}</TableCell>
+                                <TableCell className="min-w-0 truncate">미지정</TableCell>
+                                <TableCell className="min-w-0 text-center shrink-0">-</TableCell>
+                                <TableCell className="text-sm text-muted-foreground shrink-0 whitespace-nowrap text-center">
+                                  {formatDate(row.upload_time || row.created_at)}
+                                </TableCell>
+                                <TableCell className="text-sm text-muted-foreground shrink-0 whitespace-nowrap text-center">-</TableCell>
+                                <TableCell className="w-[80px] text-right" onClick={(e) => e.stopPropagation()}>
+                                  {(me?.role === "staff") && (
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      onClick={(e) => handleDeleteS3Update(String(row.id), e)}
+                                      className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                      title="S3 업무 삭제"
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  )}
+                                </TableCell>
+                              </TableRow>
+                              {isDetailOpen && (
+                                <TableRow className="bg-amber-500/5 border-l-4 border-l-amber-500/30">
+                                  <TableCell colSpan={9} className="py-0">
+                                    <S3InlineDetail row={row} toast={toast} />
+                                  </TableCell>
+                                </TableRow>
+                              )}
+                            </Fragment>
                           )
                         }
                         if (entry.type === "task_with_s3_group") {
@@ -789,33 +801,44 @@ export default function WorklistPage() {
                                   )}
                                 </TableCell>
                               </TableRow>
-                              {isExpanded && s3List.map((row) => (
-                                <TableRow
-                                  key={`s3-${row.id}`}
-                                  className="cursor-pointer hover:bg-accent/30 bg-emerald-500/5 border-l-4 border-l-emerald-500/30"
-                                  onClick={() => router.push(`/admin/cases/s3-update/${row.id}`)}
-                                >
-                                  <TableCell className="w-10 px-2" />
-                                  <TableCell className="font-medium pl-8 align-middle py-1.5 text-sm text-muted-foreground min-w-0">
-                                    <span className="font-mono text-emerald-600/80 mr-2 shrink-0" aria-hidden>└</span>
-                                    <span className="truncate inline-block max-w-full align-middle" title={row.file_name}>{row.file_name}</span>
-                                  </TableCell>
-                                  <TableCell colSpan={6} className="py-1.5" />
-                                  <TableCell className="w-[80px] py-1.5 text-right" onClick={(e) => e.stopPropagation()}>
-                                    {(me?.role === "staff") && (
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        onClick={(e) => handleDeleteS3Update(String(row.id), e)}
-                                        className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                                        title="S3 업무 삭제"
-                                      >
-                                        <Trash2 className="h-4 w-4" />
-                                      </Button>
+                              {isExpanded && s3List.map((row) => {
+                                const isSubDetailOpen = expandedS3DetailId === row.id
+                                return (
+                                  <Fragment key={`s3-${row.id}`}>
+                                    <TableRow
+                                      className="cursor-pointer hover:bg-accent/30 bg-emerald-500/5 border-l-4 border-l-emerald-500/30"
+                                      onClick={() => setExpandedS3DetailId(isSubDetailOpen ? null : row.id)}
+                                    >
+                                      <TableCell className="w-10 px-2" />
+                                      <TableCell className="font-medium pl-8 align-middle py-1.5 text-sm text-muted-foreground min-w-0">
+                                        <span className="font-mono text-emerald-600/80 mr-2 shrink-0" aria-hidden>└</span>
+                                        <span className="truncate inline-block max-w-full align-middle" title={row.file_name}>{row.file_name}</span>
+                                      </TableCell>
+                                      <TableCell colSpan={6} className="py-1.5" />
+                                      <TableCell className="w-[80px] py-1.5 text-right" onClick={(e) => e.stopPropagation()}>
+                                        {(me?.role === "staff") && (
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            onClick={(e) => handleDeleteS3Update(String(row.id), e)}
+                                            className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                            title="S3 업무 삭제"
+                                          >
+                                            <Trash2 className="h-4 w-4" />
+                                          </Button>
+                                        )}
+                                      </TableCell>
+                                    </TableRow>
+                                    {isSubDetailOpen && (
+                                      <TableRow className="bg-emerald-500/5 border-l-4 border-l-emerald-500/20">
+                                        <TableCell colSpan={9} className="py-0">
+                                          <S3InlineDetail row={row} toast={toast} />
+                                        </TableCell>
+                                      </TableRow>
                                     )}
-                                  </TableCell>
-                                </TableRow>
-                              ))}
+                                  </Fragment>
+                                )
+                              })}
                             </Fragment>
                           )
                         }
@@ -1021,6 +1044,7 @@ export default function WorklistPage() {
           </div>
         </div>
       )}
+
 
     </div>
   )
