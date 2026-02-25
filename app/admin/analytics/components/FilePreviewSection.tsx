@@ -41,7 +41,7 @@ export function FilePreviewSection({
                 <div className="flex items-center justify-center h-[400px]">
                   <p className="text-sm text-muted-foreground">로딩 중...</p>
                 </div>
-              ) : getFileType(selectedFile) === "excel" && previewData && previewData.type === "excel" ? (
+              ) : getFileType(selectedFile) === "excel" && previewData && (previewData.type === "excel" || previewData.type === "csv") ? (
                 <div className="p-4 overflow-x-auto" style={{ maxHeight: "400px" }}>
                   {previewData.sheets && Array.isArray(previewData.sheets) && previewData.sheets.length > 0 ? (
                     <div className="space-y-4">
@@ -70,6 +70,40 @@ export function FilePreviewSection({
                           </div>
                         </div>
                       ))}
+                    </div>
+                  ) : previewData.headers && Array.isArray(previewData.headers) ? (
+                    <div className="space-y-2">
+                      <p className="text-sm text-muted-foreground">
+                        {previewData.type === "csv" ? "CSV" : "Excel"} 미리보기 (총 {previewData.totalRows ?? 0}행 중 {(previewData.data?.length ?? 0)}행 표시)
+                      </p>
+                      <div className="border rounded-md overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              {previewData.headers.map((header, idx) => (
+                                <TableHead key={idx}>{header}</TableHead>
+                              ))}
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {(previewData.data?.length ?? 0) > 0 ? (
+                              previewData.data!.map((row: Record<string, unknown>, rowIdx: number) => (
+                                <TableRow key={rowIdx}>
+                                  {previewData.headers!.map((header, colIdx) => (
+                                    <TableCell key={colIdx}>{String((row as Record<string, unknown>)[header] ?? "")}</TableCell>
+                                  ))}
+                                </TableRow>
+                              ))
+                            ) : (
+                              <TableRow>
+                                <TableCell colSpan={previewData.headers.length} className="text-center text-muted-foreground">
+                                  데이터 없음
+                                </TableCell>
+                              </TableRow>
+                            )}
+                          </TableBody>
+                        </Table>
+                      </div>
                     </div>
                   ) : (
                     <div className="p-4 text-center">

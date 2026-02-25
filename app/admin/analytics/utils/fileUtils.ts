@@ -19,6 +19,12 @@ export const getFileType = (file: S3File | null | undefined): "excel" | "pdf" | 
   const pptExtensions = ['ppt', 'pptx']
   if (extension && pptExtensions.includes(extension)) return "ppt"
   
+  const excelExtensions = ['xlsx', 'xls', 'csv']
+  if (extension && excelExtensions.includes(extension)) return "excel"
+  if (extension === 'pdf') return "pdf"
+  const dicomExtensions = ['dcm', 'dicom']
+  if (extension && dicomExtensions.includes(extension)) return "dicom"
+  
   if (file.fileType) {
     if (file.fileType === "excel") return "excel"
     if (file.fileType === "pdf") return "pdf"

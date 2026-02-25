@@ -15,7 +15,7 @@ import Link from "next/link"
 import { Fragment } from "react"
 import { useToast } from "@/hooks/use-toast"
 import { UploadSection } from "./components/UploadSection"
-import { isTaskExpired } from "@/lib/utils/taskHelpers"
+import { isTaskExpired, getDaysOverdue } from "@/lib/utils/taskHelpers"
 import { parseFlexibleDate } from "@/lib/utils/dateHelpers"
 import type { Task, S3UpdateRow } from "@/lib/types"
 
@@ -633,7 +633,15 @@ export default function WorklistPage() {
                                 <TableCell>{getPriorityBadge(task.priority)}</TableCell>
                                 <TableCell className="text-sm text-muted-foreground">{formatDate(task.created_at)}</TableCell>
                                 <TableCell className={`text-sm ${expired ? "text-red-600 font-medium" : "text-muted-foreground"}`}>
-                                  {task.due_date ? formatDate(task.due_date) : "-"}
+                                  {task.due_date ? (
+                                    <>
+                                      {formatDate(task.due_date)}
+                                      {(() => {
+                                        const daysOverdue = getDaysOverdue(task)
+                                        return daysOverdue > 0 ? <span className="text-red-600 font-medium ml-1">+{daysOverdue}</span> : null
+                                      })()}
+                                    </>
+                                  ) : "-"}
                                 </TableCell>
                                 <TableCell onClick={(e) => e.stopPropagation()}>
                                   {(me?.id === task.assigned_by || me?.role === "staff") && (
@@ -679,7 +687,15 @@ export default function WorklistPage() {
                             <TableCell>{getPriorityBadge(task.priority)}</TableCell>
                             <TableCell className="text-sm text-muted-foreground">{formatDate(task.created_at)}</TableCell>
                             <TableCell className={`text-sm ${expired ? "text-red-600 font-medium" : "text-muted-foreground"}`}>
-                              {task.due_date ? formatDate(task.due_date) : "-"}
+                              {task.due_date ? (
+                                <>
+                                  {formatDate(task.due_date)}
+                                  {(() => {
+                                    const daysOverdue = getDaysOverdue(task)
+                                    return daysOverdue > 0 ? <span className="text-red-600 font-medium ml-1">+{daysOverdue}</span> : null
+                                  })()}
+                                </>
+                              ) : "-"}
                             </TableCell>
                             <TableCell onClick={(e) => e.stopPropagation()}>
                               {(me?.id === task.assigned_by || me?.role === "staff") && (

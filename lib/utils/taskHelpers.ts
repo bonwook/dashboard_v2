@@ -131,6 +131,20 @@ export function isTaskExpired(task: any): boolean {
   return dueDateOnly < today
 }
 
+/** 마감일이 지났을 때 지난 일수 반환. 미완료이고 마감일 초과일 때만 1 이상, 아니면 0 */
+export function getDaysOverdue(task: any): number {
+  if (!task.due_date || task.status === 'completed') return 0
+  const dueDate = parseDateOnly(task.due_date)
+  if (!dueDate) return 0
+  const now = new Date()
+  const koreaDate = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Seoul" }))
+  const today = new Date(koreaDate.getFullYear(), koreaDate.getMonth(), koreaDate.getDate())
+  const dueDateOnly = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate())
+  if (dueDateOnly >= today) return 0
+  const diffMs = today.getTime() - dueDateOnly.getTime()
+  return Math.floor(diffMs / (24 * 60 * 60 * 1000))
+}
+
 export function formatDateTime(dateString: string): string {
   const date = parseFlexibleDate(dateString)
   if (!date) return "-"

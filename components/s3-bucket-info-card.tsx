@@ -192,7 +192,6 @@ export function S3BucketInfoCard({ s3Update, compact = false }: S3BucketInfoCard
           if (!summary && entries.length === 0) return null
           return (
             <div className="text-sm mt-3 space-y-1.5">
-              <div className="text-xs font-medium text-muted-foreground">Study/Series 메타데이터</div>
               {summary && <div className="break-words text-muted-foreground">{summary}</div>}
               {entries.length > 0 && (
                 <dl className="grid grid-cols-2 gap-x-2 gap-y-1 text-muted-foreground">
