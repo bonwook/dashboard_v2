@@ -42,6 +42,8 @@ const STUDY_SERIES_METADATA_KEYS: { label: string; keys: string[] }[] = [
 function formatS3Metadata(metadata: S3UpdateRow["metadata"]): string {
   if (metadata == null) return ""
   const obj = typeof metadata === "string" ? (() => { try { return JSON.parse(metadata) } catch { return null } })() : metadata
+  //metadata가 string이면 "{ "color": "red", "size": 10 }" 이런 형태이므로, 객체를 사용할 수 없어서 JSON.parse를하고
+  //그렇지 않으면 metadata = { "color": "red", "size": 10 } 이 형태이므로 이걸 반환해서 obj로 사용하겠다.
   if (!obj || typeof obj !== "object") return ""
   const rec = obj as Record<string, unknown>
   if (typeof rec.summary === "string" && rec.summary.trim()) return rec.summary.trim()
