@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Progress } from "@/components/ui/progress"
-import { Activity, RefreshCw, Search, Trash2, Plus, CheckCircle2 } from "lucide-react"
+import { Activity, RefreshCw, Search, Trash2, Plus, CheckCircle2, ChevronDown, ChevronRight } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Fragment } from "react"
 import { useToast } from "@/hooks/use-toast"
@@ -84,6 +84,8 @@ export default function WorklistPage() {
   const [me, setMe] = useState<{ id: string; role?: string } | null>(null)
   const [uploadLoading, setUploadLoading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
+  /** task_with_s3_group 하위 파일 행 펼침 여부 (task.id → expanded) */
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
   /** 고무밴드로 시각적으로 선택된 행 */
   const [rubberSelectedIds, setRubberSelectedIds] = useState<Set<string>>(new Set())
   const [batchRequestOpen, setBatchRequestOpen] = useState(false)
@@ -645,7 +647,8 @@ export default function WorklistPage() {
                               data-draggable-row
                               onMouseDown={(e) => {
                                 if (e.button !== 0) return
-                                const group = rubberSelectedIds.has(`s3-${row.id}`) && rubberSelectedIds.size > 1
+                                if ((e.target as HTMLElement).closest("[data-checkbox]")) return
+                                const group = rubberSelectedIds.has(`s3-${row.id}`)
                                   ? new Set(rubberSelectedIds)
                                   : new Set([`s3-${row.id}`])
                                 const files = s3Updates.filter((u) => group.has(`s3-${u.id}`))
@@ -655,8 +658,19 @@ export default function WorklistPage() {
                               onClick={() => router.push(`/admin/cases/s3-update/${row.id}`)}
                             >
                               <TableCell className="w-10 px-2 align-top">
-                                {/* 고무밴드 선택 표시 */}
-                                <div className={`w-4 h-4 rounded-sm border flex items-center justify-center ${rubberSelectedIds.has(`s3-${row.id}`) ? "bg-primary border-primary" : "border-muted-foreground/30"}`}>
+                                <div
+                                  data-checkbox
+                                  className={`w-4 h-4 rounded-sm border flex items-center justify-center cursor-pointer transition-colors ${rubberSelectedIds.has(`s3-${row.id}`) ? "bg-primary border-primary" : "border-muted-foreground/30 hover:border-primary/60"}`}
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    setRubberSelectedIds((prev) => {
+                                      const next = new Set(prev)
+                                      if (next.has(`s3-${row.id}`)) next.delete(`s3-${row.id}`)
+                                      else next.add(`s3-${row.id}`)
+                                      return next
+                                    })
+                                  }}
+                                >
                                   {rubberSelectedIds.has(`s3-${row.id}`) && <span className="text-primary-foreground text-[10px] leading-none">✓</span>}
                                 </div>
                               </TableCell>
@@ -697,13 +711,32 @@ export default function WorklistPage() {
                         if (entry.type === "task_with_s3_group") {
                           const { task, s3List } = entry
                           const expired = isTaskExpired(task)
+                          const isExpanded = expandedGroups.has(task.id)
+                          const toggleExpand = (e: React.MouseEvent) => {
+                            e.stopPropagation()
+                            setExpandedGroups((prev) => {
+                              const next = new Set(prev)
+                              if (next.has(task.id)) next.delete(task.id)
+                              else next.add(task.id)
+                              return next
+                            })
+                          }
                           return (
                             <Fragment key={`group-${task.id}`}>
                               <TableRow
                                 className={`cursor-pointer hover:bg-accent/50 bg-emerald-500/6 border-l-4 border-l-emerald-500/50 ${expired ? "bg-red-500/5" : ""}`}
                                 onClick={() => router.push(`/admin/cases/${task.id}`)}
                               >
-                                <TableCell className="w-10 px-2" />
+                                <TableCell className="w-10 px-2" onClick={toggleExpand}>
+                                  <button
+                                    className="flex items-center justify-center w-6 h-6 rounded hover:bg-muted transition-colors text-muted-foreground"
+                                    title={isExpanded ? "파일 목록 접기" : "파일 목록 펼치기"}
+                                  >
+                                    {isExpanded
+                                      ? <ChevronDown className="h-4 w-4" />
+                                      : <ChevronRight className="h-4 w-4" />}
+                                  </button>
+                                </TableCell>
                                 <TableCell className="font-medium py-2 min-w-0">
                                   <div className="flex items-center gap-2 min-w-0">
                                     <span className="truncate" title={task.title}>{task.title}</span>
@@ -716,7 +749,11 @@ export default function WorklistPage() {
                                   <Badge className="bg-emerald-500/15 text-emerald-700 font-normal border border-emerald-500/40">할당</Badge>
                                 </TableCell>
                                 <TableCell className="min-w-0 truncate" title={task.assigned_by_name || task.assigned_by_email || ""}>{task.assigned_by_name || task.assigned_by_email || "Unknown"}</TableCell>
-                                <TableCell className="min-w-0 truncate" title={task.assigned_to_name || task.assigned_to_email || ""}>{task.assigned_to_name || task.assigned_to_email || "Unknown"}</TableCell>
+                                <TableCell className="min-w-0 truncate">
+                                  {task.assignment_type === "individual"
+                                    ? <Badge variant="secondary" className="font-normal text-xs">공동</Badge>
+                                    : <span title={task.assigned_to_name || task.assigned_to_email || ""}>{task.assigned_to_name || task.assigned_to_email || "Unknown"}</span>}
+                                </TableCell>
                                 <TableCell className="shrink-0 text-center">{getPriorityBadge(task.priority)}</TableCell>
                                 <TableCell className="text-sm text-muted-foreground shrink-0 whitespace-nowrap text-center">{formatDate(task.created_at)}</TableCell>
                                 <TableCell className={`text-sm shrink-0 whitespace-nowrap text-center ${expired ? "text-red-600 font-medium" : "text-muted-foreground"}`}>
@@ -744,7 +781,7 @@ export default function WorklistPage() {
                                   )}
                                 </TableCell>
                               </TableRow>
-                              {s3List.map((row) => (
+                              {isExpanded && s3List.map((row) => (
                                 <TableRow
                                   key={`s3-${row.id}`}
                                   className="cursor-pointer hover:bg-accent/30 bg-emerald-500/5 border-l-4 border-l-emerald-500/30"
@@ -790,7 +827,11 @@ export default function WorklistPage() {
                               <Badge className="bg-emerald-500/15 text-emerald-700 font-normal border border-emerald-500/40">할당</Badge>
                             </TableCell>
                             <TableCell className="min-w-0 truncate" title={task.assigned_by_name || task.assigned_by_email || ""}>{task.assigned_by_name || task.assigned_by_email || "Unknown"}</TableCell>
-                            <TableCell className="min-w-0 truncate" title={task.assigned_to_name || task.assigned_to_email || ""}>{task.assigned_to_name || task.assigned_to_email || "Unknown"}</TableCell>
+                            <TableCell className="min-w-0 truncate">
+                              {task.assignment_type === "individual"
+                                ? <Badge variant="secondary" className="font-normal text-xs">공동</Badge>
+                                : <span title={task.assigned_to_name || task.assigned_to_email || ""}>{task.assigned_to_name || task.assigned_to_email || "Unknown"}</span>}
+                            </TableCell>
                             <TableCell className="shrink-0 text-center">{getPriorityBadge(task.priority)}</TableCell>
                             <TableCell className="text-sm text-muted-foreground shrink-0 whitespace-nowrap text-center">{formatDate(task.created_at)}</TableCell>
                             <TableCell className={`text-sm shrink-0 whitespace-nowrap text-center ${expired ? "text-red-600 font-medium" : "text-muted-foreground"}`}>
@@ -845,7 +886,11 @@ export default function WorklistPage() {
                                   <Badge className="bg-emerald-500/15 text-emerald-700 font-normal border border-emerald-500/40">할당</Badge>
                                 </TableCell>
                                 <TableCell className="text-center min-w-0 truncate">{task.assigned_by_name || task.assigned_by_email || "Unknown"}</TableCell>
-                                <TableCell className="text-center min-w-0 truncate">{task.assigned_to_name || task.assigned_to_email || "Unknown"}</TableCell>
+                                <TableCell className="text-center min-w-0 truncate">
+                                  {task.assignment_type === "individual"
+                                    ? <Badge variant="secondary" className="font-normal text-xs">공동</Badge>
+                                    : (task.assigned_to_name || task.assigned_to_email || "Unknown")}
+                                </TableCell>
                                 <TableCell className="text-center shrink-0">{getPriorityBadge(task.priority)}</TableCell>
                                 <TableCell className="text-sm text-muted-foreground text-center shrink-0 whitespace-nowrap">{formatDate(task.created_at)}</TableCell>
                                 <TableCell className="text-sm text-muted-foreground text-center shrink-0 whitespace-nowrap">{task.due_date ? formatDateOnly(task.due_date) : "-"}</TableCell>

@@ -24,7 +24,7 @@ import { calculateFileExpiry, formatDateShort, parseDateOnly } from "@/lib/utils
 import { Task, TaskStatus, ResolvedFileKey, S3UpdateInfo } from "./types"
 import { TaskBlock } from "./components/TaskBoard/TaskBlock"
 import { TaskCommentSection, TaskDetailDialog, normalizeFileKeys } from "@/components/task"
-import { S3BucketInfoCard } from "@/components/s3-bucket-info-card"
+import { TaskS3BucketCard } from "@/components/task-s3-bucket-card"
 import { useWorkEditor } from "./hooks/useWorkEditor"
 import { useCommentEditor } from "./hooks/useCommentEditor"
 import { safeStorage } from "@/lib/utils/safeStorage"
@@ -55,7 +55,7 @@ export default function ClientProgressPage() {
   const [workUploadProgress, setWorkUploadProgress] = useState(0)
   const [isWorkAreaDragOver, setIsWorkAreaDragOver] = useState(false)
   const [isWorkAreaReadOnly, setIsWorkAreaReadOnly] = useState(false)
-  const [workTaskS3Update, setWorkTaskS3Update] = useState<S3UpdateInfo | null>(null)
+  const [workTaskS3Updates, setWorkTaskS3Updates] = useState<S3UpdateInfo[]>([])
   
   // 댓글 에디터 상태
   const [workCommentContent, setWorkCommentContent] = useState("")
@@ -109,7 +109,7 @@ export default function ClientProgressPage() {
   // 공동 업무(서브태스크)일 때는 s3_updates가 메인 task_id에만 연결되므로 메인 task로 조회
   useEffect(() => {
     if (!workTaskId) {
-      setWorkTaskS3Update(null)
+      setWorkTaskS3Updates([])
       return
     }
     const currentTask = tasks.find((t) => t.id === workTaskId)
@@ -121,10 +121,12 @@ export default function ClientProgressPage() {
         const res = await fetch(`/api/tasks/${idToFetch}`, { credentials: "include" })
         if (!res.ok) return
         const data = await res.json()
-        const s3 = data.s3Update ?? null
-        setWorkTaskS3Update(s3)
+        const s3List: S3UpdateInfo[] = Array.isArray(data.s3Updates)
+          ? data.s3Updates
+          : data.s3Update ? [data.s3Update] : []
+        setWorkTaskS3Updates(s3List)
       } catch {
-        setWorkTaskS3Update(null)
+        setWorkTaskS3Updates([])
       }
     }
     load()
@@ -133,7 +135,7 @@ export default function ClientProgressPage() {
   const clearWorkArea = useCallback((taskId?: string) => {
     // 작업공간 상태 초기화
     setWorkTaskId(null)
-    setWorkTaskS3Update(null)
+    setWorkTaskS3Updates([])
     setIsWorkAreaReadOnly(false)
     setWorkForm({ title: "", content: "", priority: "medium" })
     setWorkAttachedFiles([])
@@ -159,9 +161,10 @@ export default function ClientProgressPage() {
 
   /** S3 연결 업무: presigned(s3_key)는 버킷 카드에서만 다운로드 → 요청자 첨부 목록에서는 제외 */
   const workResolvedFileKeysForDisplay = useMemo(() => {
-    if (!workTaskS3Update?.s3_key) return workResolvedFileKeys
-    return workResolvedFileKeys.filter((r) => r.s3Key !== workTaskS3Update.s3_key)
-  }, [workResolvedFileKeys, workTaskS3Update?.s3_key])
+    if (workTaskS3Updates.length === 0) return workResolvedFileKeys
+    const s3KeySet = new Set(workTaskS3Updates.map((u) => u.s3_key).filter(Boolean))
+    return workResolvedFileKeys.filter((r) => !s3KeySet.has(r.s3Key))
+  }, [workResolvedFileKeys, workTaskS3Updates])
 
   const loadTasks = useCallback(async () => {
     setIsLoading(true)
@@ -739,18 +742,22 @@ export default function ClientProgressPage() {
                     )
                   })()}
                   {/* S3 출처 업무일 때 버킷 정보 카드 + presigned 다운로드 */}
-                  {workTaskS3Update && workTaskS3Update.id != null && (
-                    <S3BucketInfoCard
-                      s3Update={{
-                        id: Number(workTaskS3Update.id),
-                        file_name: workTaskS3Update.file_name,
-                        bucket_name: workTaskS3Update.bucket_name,
-                        file_size: workTaskS3Update.file_size,
-                        upload_time: workTaskS3Update.upload_time ?? null,
-                        created_at: workTaskS3Update.created_at ?? "",
-                        s3_key: workTaskS3Update.s3_key,
-                      }}
-                      compact
+                  {workTaskS3Updates.length > 0 && workTaskS3Updates.some((u) => u.id != null) && (
+                    <TaskS3BucketCard
+                      taskTitle=""
+                      s3Updates={workTaskS3Updates
+                        .filter((u) => u.id != null)
+                        .map((u) => ({
+                          id: Number(u.id),
+                          file_name: u.file_name,
+                          bucket_name: u.bucket_name,
+                          file_size: u.file_size,
+                          metadata: u.metadata,
+                          upload_time: u.upload_time ?? null,
+                          created_at: u.created_at ?? "",
+                          task_id: null,
+                          s3_key: u.s3_key,
+                        }))}
                     />
                   )}
                 {/* 제목을 comment와 동일한 너비로 설정 */}

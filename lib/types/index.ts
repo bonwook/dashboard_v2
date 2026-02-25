@@ -107,6 +107,7 @@ export interface Task {
   completed_at: string | null
   is_multi_assign?: boolean
   has_any_attachment?: boolean
+  assignment_type?: string | null
 }
 
 export interface Subtask {

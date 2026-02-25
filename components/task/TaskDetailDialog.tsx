@@ -39,7 +39,7 @@ import { calculateFileExpiry, formatDateShort } from "@/lib/utils/dateHelpers"
 import { downloadWithProgress } from "@/lib/utils/download-with-progress"
 import { TaskCommentSection } from "./TaskCommentSection"
 import { DueDateEditor } from "./DueDateEditor"
-import { S3BucketInfoCard } from "@/components/s3-bucket-info-card"
+import { TaskS3BucketCard } from "@/components/task-s3-bucket-card"
 
 export interface TaskDetailTask {
   id: string
@@ -176,16 +176,18 @@ export function TaskDetailDialog({
   const [downloadingFileName, setDownloadingFileName] = useState("")
   /** 캘린더 등에서 열 때 상세(comment, comment_file_keys 등) 로드용 */
   const [fullTask, setFullTask] = useState<TaskDetailTask | null>(null)
-  /** task에 연결된 s3_update (있으면 버킷 정보 카드 표시) */
-  const [s3Update, setS3Update] = useState<{
+  /** task에 연결된 s3_updates (있으면 버킷 정보 카드 표시) */
+  const [s3Updates, setS3Updates] = useState<Array<{
     id: number
     file_name: string
     bucket_name?: string | null
     file_size?: number | null
+    metadata?: Record<string, unknown> | string | null
     upload_time?: string | null
     created_at: string
+    task_id?: string | null
     s3_key: string
-  } | null>(null)
+  }>>([])
 
   const mainTaskId = task ? (task.parent_task_id ?? task.task_id ?? task.id) : null
   const displayTask: TaskDetailTask | null = task
@@ -199,7 +201,7 @@ export function TaskDetailDialog({
   useEffect(() => {
     if (!open || !mainTaskId) {
       setFullTask(null)
-      setS3Update(null)
+      setS3Updates([])
       return
     }
     let cancelled = false
@@ -213,8 +215,10 @@ export function TaskDetailDialog({
           file_keys: normalizeFileKeys(t.file_keys),
           comment_file_keys: normalizeFileKeys(t.comment_file_keys),
         })
-        if (data.s3Update) setS3Update(data.s3Update)
-        else setS3Update(null)
+        const list = Array.isArray(data.s3Updates)
+          ? data.s3Updates
+          : data.s3Update ? [data.s3Update] : []
+        setS3Updates(list)
       })
       .catch(() => {})
     return () => {
@@ -501,8 +505,8 @@ export function TaskDetailDialog({
           </div>
         </DialogHeader>
 
-        {s3Update && (
-          <S3BucketInfoCard s3Update={s3Update} compact />
+        {s3Updates.length > 0 && (
+          <TaskS3BucketCard taskTitle={displayTask.title} s3Updates={s3Updates} />
         )}
 
         <div className="flex items-center justify-between gap-4 pb-4">

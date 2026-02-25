@@ -26,19 +26,35 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
     const taskId = searchParams.get("task_id")
+    const idsParam = searchParams.get("ids") // 쉼표로 구분된 id 목록
 
-    const rows = taskId
-      ? await query(
-          `SELECT id, file_name, bucket_name, file_size, metadata, upload_time, created_at, task_id
-           FROM s3_updates WHERE task_id = ?
-           ORDER BY COALESCE(upload_time, created_at) DESC`,
-          [taskId]
-        )
-      : await query(
-          `SELECT id, file_name, bucket_name, file_size, metadata, upload_time, created_at, task_id
-           FROM s3_updates
-           ORDER BY COALESCE(upload_time, created_at) DESC`
-        )
+    let rows
+    if (idsParam) {
+      const ids = idsParam.split(",").map((v) => v.trim()).filter(Boolean)
+      if (ids.length === 0) {
+        return NextResponse.json({ s3Updates: [] })
+      }
+      const placeholders = ids.map(() => "?").join(",")
+      rows = await query(
+        `SELECT id, file_name, bucket_name, file_size, metadata, upload_time, created_at, task_id
+         FROM s3_updates WHERE id IN (${placeholders})
+         ORDER BY COALESCE(upload_time, created_at) DESC`,
+        ids
+      )
+    } else if (taskId) {
+      rows = await query(
+        `SELECT id, file_name, bucket_name, file_size, metadata, upload_time, created_at, task_id
+         FROM s3_updates WHERE task_id = ?
+         ORDER BY COALESCE(upload_time, created_at) DESC`,
+        [taskId]
+      )
+    } else {
+      rows = await query(
+        `SELECT id, file_name, bucket_name, file_size, metadata, upload_time, created_at, task_id
+         FROM s3_updates
+         ORDER BY COALESCE(upload_time, created_at) DESC`
+      )
+    }
 
     const list = (rows || []).map((row: Record<string, unknown>) => {
       const r = row as { file_name: string; bucket_name?: string | null }

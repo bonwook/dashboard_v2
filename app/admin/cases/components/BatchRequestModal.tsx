@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
+import { useRouter } from "next/navigation"
 import {
   Dialog,
   DialogContent,
@@ -43,6 +44,7 @@ export function BatchRequestModal({
   onSuccess,
 }: BatchRequestModalProps) {
   const { toast } = useToast()
+  const router = useRouter()
   const [step, setStep] = useState<"choice" | "new_task" | "attach">("choice")
   const [title, setTitle] = useState("")
   const [assignedTo, setAssignedTo] = useState("")
@@ -198,7 +200,10 @@ export function BatchRequestModal({
               <Button
                 variant="outline"
                 className="w-full justify-start"
-                onClick={() => setStep("new_task")}
+                onClick={() => {
+                  onOpenChange(false)
+                  router.push(`/admin/analytics?from=worklist&s3Ids=${s3Ids.join(",")}`)
+                }}
               >
                 새 업무로 요청 (선택한 S3 → 업무 1개 생성)
               </Button>

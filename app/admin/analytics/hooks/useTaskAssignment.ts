@@ -24,6 +24,8 @@ interface UseTaskAssignmentProps {
   setSelectedAssignees: (assignees: Set<string>) => void
   setSelectedFiles: (files: Set<string>) => void
   s3UpdateId?: string | null
+  /** 워크리스트 드래그로 넘어온 다수 s3 id */
+  s3UpdateIds?: string[]
 }
 
 export function useTaskAssignment(props: UseTaskAssignmentProps) {
@@ -37,6 +39,7 @@ export function useTaskAssignment(props: UseTaskAssignmentProps) {
     setSelectedAssignees,
     setSelectedFiles,
     s3UpdateId,
+    s3UpdateIds,
   } = props
 
   const [isAssigning, setIsAssigning] = useState(false)
@@ -80,6 +83,14 @@ export function useTaskAssignment(props: UseTaskAssignmentProps) {
         due_date: assignForm.due_date ? format(assignForm.due_date, "yyyy-MM-dd") : null,
       }
       
+      // 다수 s3 ids (워크리스트 드래그) 우선, 없으면 단일 id
+      const resolvedS3Ids =
+        s3UpdateIds && s3UpdateIds.length > 0
+          ? s3UpdateIds
+          : s3UpdateId
+          ? [s3UpdateId]
+          : []
+
       if (subtasks.length > 0) {
         requestBody.mainContent = mainContentHtml
         requestBody.subtasks = subtasks.map(s => ({
@@ -89,12 +100,12 @@ export function useTaskAssignment(props: UseTaskAssignmentProps) {
           fileKeys: s.fileKeys
         }))
         requestBody.assignmentType = 'individual'
-        if (s3UpdateId) requestBody.s3_update_id = s3UpdateId
+        if (resolvedS3Ids.length > 0) requestBody.s3_update_ids = resolvedS3Ids
       } else {
         requestBody.content = mainContentHtml
         requestBody.fileKeys = Array.from(selectedFiles)
         requestBody.assignedTo = assignForm.assigned_to
-        if (s3UpdateId) requestBody.s3_update_id = s3UpdateId
+        if (resolvedS3Ids.length > 0) requestBody.s3_update_ids = resolvedS3Ids
       }
       
       const response = await fetch("/api/storage/assign", {
@@ -162,7 +173,7 @@ export function useTaskAssignment(props: UseTaskAssignmentProps) {
       setIsAssigning(false)
     }
     return undefined
-  }, [assignForm, subtasks, selectedFiles, toast, setAssignForm, setSubtasks, setSelectedAssignees, setSelectedFiles, s3UpdateId])
+  }, [assignForm, subtasks, selectedFiles, toast, setAssignForm, setSubtasks, setSelectedAssignees, setSelectedFiles, s3UpdateId, s3UpdateIds])
 
   return {
     isAssigning,

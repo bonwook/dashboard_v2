@@ -278,6 +278,24 @@ export async function GET(
         return NextResponse.json({ error: "권한이 없습니다" }, { status: 403 })
       }
 
+      // 부모 task에 연결된 S3 건 조회 (다중 S3 → 1 task 지원)
+      let parentS3Updates: Array<Record<string, unknown> & { s3_key: string }> = []
+      try {
+        const parentS3Rows = await query(
+          `SELECT id, file_name, bucket_name, file_size, metadata, upload_time, created_at, task_id FROM s3_updates WHERE task_id = ? ORDER BY created_at ASC`,
+          [subtask.task_id]
+        )
+        if (parentS3Rows && parentS3Rows.length > 0) {
+          parentS3Updates = parentS3Rows.map((row: any) => {
+            const r = row as { file_name: string; bucket_name?: string | null }
+            return { ...row, s3_key: toS3Key(r) }
+          })
+        }
+      } catch {
+        // s3_updates 없거나 컬럼 없으면 무시
+      }
+      const parentS3Update = parentS3Updates.length > 0 ? parentS3Updates[0] : null
+
       // file_keys, comment_file_keys: task_file_attachments(세부업무) 우선
       try {
         const fromTable = await getTaskAttachmentsFromTable(subtask.task_id, subtask.id)
@@ -331,7 +349,9 @@ export async function GET(
             assignment_type: subtask.assignment_type,
             is_subtask: true,
             shared_with: [],
-          }
+          },
+          ...(parentS3Update ? { s3Update: parentS3Update } : {}),
+          ...(parentS3Updates.length > 0 ? { s3Updates: parentS3Updates } : {}),
         })
       } catch {
         return NextResponse.json({
@@ -342,7 +362,9 @@ export async function GET(
             assignment_type: subtask.assignment_type,
             is_subtask: true,
             shared_with: [],
-          }
+          },
+          ...(parentS3Update ? { s3Update: parentS3Update } : {}),
+          ...(parentS3Updates.length > 0 ? { s3Updates: parentS3Updates } : {}),
         })
       }
     }

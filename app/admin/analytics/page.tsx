@@ -20,7 +20,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Progress } from "@/components/ui/progress"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
-import { useSearchParams } from "next/navigation"
+import { useSearchParams, useRouter as useNextRouter } from "next/navigation"
 import { format } from "date-fns"
 import { ko } from "date-fns/locale"
 import { uploadWithProgress } from "@/lib/utils/upload-with-progress"
@@ -31,12 +31,17 @@ import { useTaskAssignment } from "./hooks/useTaskAssignment"
 import { useFileUpload } from "./hooks/useFileUpload"
 import { getFileType, getFileTypeIcon, formatFileSize, updateDisplayedFiles, getDisplayPath } from "./utils/fileUtils"
 import { TaskFormHeader } from "./components/TaskFormHeader"
+import { TaskS3BucketCard } from "@/components/task-s3-bucket-card"
 import { FilePreviewSection } from "./components/FilePreviewSection"
 
 export default function ClientAnalyticsPage() {
   const searchParams = useSearchParams()
+  const nextRouter = useNextRouter()
   const fromWorklist = searchParams.get("from") === "worklist"
   const s3UpdateId = searchParams.get("s3_update_id")
+  const s3IdsParam = searchParams.get("s3Ids") // 워크리스트에서 드래그로 넘어온 s3 id 목록
+
+  const [preloadedS3, setPreloadedS3] = useState<import("@/lib/types").S3UpdateForTask[]>([])
 
   const [allFiles, setAllFiles] = useState<S3File[]>([]) // 전체 파일 목록
   const [files, setFiles] = useState<S3File[]>([]) // 현재 표시할 파일 목록
@@ -161,6 +166,7 @@ export default function ClientAnalyticsPage() {
   })
   
   // Task assignment hook
+  const preloadedS3Ids = s3IdsParam ? s3IdsParam.split(",").map((v) => v.trim()).filter(Boolean) : []
   const { handleAssignFiles } = useTaskAssignment({
     toast,
     assignForm,
@@ -171,6 +177,7 @@ export default function ClientAnalyticsPage() {
     setSelectedFiles,
     setSelectedAssignees,
     s3UpdateId: s3UpdateId || undefined,
+    s3UpdateIds: preloadedS3Ids.length > 0 ? preloadedS3Ids : undefined,
   })
   
   // File upload hook
@@ -278,6 +285,18 @@ export default function ClientAnalyticsPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, s3UpdateId, fromWorklist])
+
+  // 워크리스트 드래그로 넘어온 s3Ids: fetch해서 버킷 카드 표시
+  useEffect(() => {
+    if (!s3IdsParam) return
+    fetch(`/api/s3-updates?ids=${encodeURIComponent(s3IdsParam)}`, { credentials: "include" })
+      .then((r) => r.json())
+      .then((data) => {
+        const list = (data.s3Updates ?? []) as import("@/lib/types").S3UpdateForTask[]
+        setPreloadedS3(list)
+      })
+      .catch(() => {})
+  }, [s3IdsParam])
 
   // currentPath 변경 시 파일 목록 업데이트
   useEffect(() => {
@@ -425,6 +444,9 @@ export default function ClientAnalyticsPage() {
             </div>
           </CardHeader>
           <CardContent className="space-y-6 flex-1 flex flex-col min-w-0 max-w-full overflow-hidden">
+            {preloadedS3.length > 0 && (
+              <TaskS3BucketCard taskTitle="" s3Updates={preloadedS3} />
+            )}
             <TaskFormHeader
               assignForm={assignForm}
               setAssignForm={setAssignForm}
@@ -2084,8 +2106,11 @@ export default function ClientAnalyticsPage() {
             <AlertDialogAction
               onClick={async () => {
                 setIsAssignConfirmDialogOpen(false)
-                await handleAssignFiles()
-                window.location.reload()
+                const result = await handleAssignFiles()
+                if (result) {
+                  // s3Ids 파라미터 없는 URL로 이동해 버킷 카드 초기화
+                  nextRouter.replace(fromWorklist ? "/admin/analytics?from=worklist" : "/admin/analytics")
+                }
               }}
             >
               {(() => {

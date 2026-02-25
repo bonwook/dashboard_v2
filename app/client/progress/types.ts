@@ -31,6 +31,7 @@ export interface S3UpdateInfo {
   bucket_name?: string | null
   s3_key: string
   file_size?: number | null
+  metadata?: Record<string, unknown> | string | null
   upload_time?: string | null
   created_at?: string
 }
