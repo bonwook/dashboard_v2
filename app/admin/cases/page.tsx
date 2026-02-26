@@ -128,6 +128,8 @@ export default function WorklistPage() {
   const handleRefresh = () => {
     setSearchQuery("")
     setBucketFilter("all")
+    setRubberSelectedIds(new Set())
+    setExpandedS3DetailId(null)
     loadTasks()
   }
 
@@ -340,7 +342,9 @@ export default function WorklistPage() {
     const onUp = (e: MouseEvent) => {
       const ds = dragStateRef.current
       if (!ds) return
-      if (ds.started) {
+      const wasStarted = ds.started
+      if (wasStarted) {
+        e.preventDefault()
         const btn = dropBtnRef.current
         if (btn) {
           const r = btn.getBoundingClientRect()
@@ -563,6 +567,55 @@ export default function WorklistPage() {
     }
   }
 
+  const handleBulkDeleteS3 = async () => {
+    const selectedS3Ids = Array.from(rubberSelectedIds)
+      .filter((id) => id.startsWith("s3-"))
+      .map((id) => id.replace("s3-", ""))
+
+    if (selectedS3Ids.length === 0) {
+      toast({ title: "선택된 항목이 없습니다", variant: "destructive" })
+      return
+    }
+
+    if (!confirm(`선택한 ${selectedS3Ids.length}개의 S3 업무를 삭제하시겠습니까?`)) {
+      return
+    }
+
+    let successCount = 0
+    let failCount = 0
+
+    for (const id of selectedS3Ids) {
+      try {
+        const response = await fetch(`/api/s3-updates/${id}`, {
+          method: "DELETE",
+          credentials: "include",
+        })
+        if (response.ok) {
+          successCount++
+        } else {
+          failCount++
+        }
+      } catch {
+        failCount++
+      }
+    }
+
+    if (successCount > 0) {
+      toast({
+        title: `${successCount}개의 S3 업무가 삭제되었습니다`,
+        description: failCount > 0 ? `${failCount}개 삭제 실패` : undefined,
+      })
+      setRubberSelectedIds(new Set())
+      await loadTasks()
+    } else {
+      toast({
+        title: "삭제 실패",
+        description: "선택한 항목을 삭제할 수 없습니다",
+        variant: "destructive",
+      })
+    }
+  }
+
   const getPriorityBadge = (priority: string) => {
     switch (priority) {
       case "urgent":
@@ -663,6 +716,17 @@ export default function WorklistPage() {
                 <Button onClick={handleRefresh} variant="outline" size="icon" className="h-9 w-9 shrink-0" disabled={isLoading} aria-label="새로고침" title="새로고침">
                   <RefreshCw className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
                 </Button>
+                {rubberSelectedIds.size > 0 && me?.role === "staff" && (
+                  <Button
+                    onClick={handleBulkDeleteS3}
+                    variant="destructive"
+                    size="sm"
+                    className="h-9 ml-auto"
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    선택 항목 삭제 ({rubberSelectedIds.size})
+                  </Button>
+                )}
               </div>
 
               {isLoading ? (
@@ -710,9 +774,14 @@ export default function WorklistPage() {
                                   dragStateRef.current = { startX: e.clientX, startY: e.clientY, started: false, rows: group, files }
                                 }}
                                 className={`cursor-grab hover:bg-accent/50 bg-amber-500/5 border-l-4 border-l-amber-500/50 border-t border-t-amber-500/20 ${rubberSelectedIds.has(`s3-${row.id}`) ? "ring-inset ring-1 ring-primary bg-primary/10" : ""}`}
-                                onClick={() => setExpandedS3DetailId(isDetailOpen ? null : row.id)}
+                                onClick={(e) => {
+                                  if ((e.target as HTMLElement).closest("[data-checkbox]")) return
+                                  const ds = dragStateRef.current
+                                  if (ds?.started) return
+                                  setExpandedS3DetailId(isDetailOpen ? null : row.id)
+                                }}
                               >
-                                <TableCell className="w-10 px-2 align-top">
+                                <TableCell className="w-10 px-2 align-middle">
                                   <div
                                     data-checkbox
                                     className={`w-4 h-4 rounded-sm border flex items-center justify-center cursor-pointer transition-colors ${rubberSelectedIds.has(`s3-${row.id}`) ? "bg-primary border-primary" : "border-muted-foreground/30 hover:border-primary/60"}`}
@@ -760,25 +829,25 @@ export default function WorklistPage() {
                                       </Button>
                                     </div>
                                   ) : (
-                                    <div className="flex items-center gap-2 group">
-                                      <div className="flex-1 min-w-0">
+                                    <div className="group">
+                                      <div className="flex items-start gap-1">
                                         <div className="text-sm truncate" title={row.file_name}>{row.file_name}</div>
-                                        {row.metadata != null && formatS3Metadata(row.metadata) && (
-                                          <div className="text-[0.65rem] leading-tight text-muted-foreground mt-0.5 max-w-full line-clamp-2" title={formatS3Metadata(row.metadata)}>
-                                            {formatS3Metadata(row.metadata)}
-                                          </div>
+                                        {me?.role === "staff" && (
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 -mt-0.5"
+                                            onClick={(e) => handleStartEditS3Title(row, e)}
+                                            title="제목 수정"
+                                          >
+                                            <Edit2 className="h-3 w-3" />
+                                          </Button>
                                         )}
                                       </div>
-                                      {me?.role === "staff" && (
-                                        <Button
-                                          variant="ghost"
-                                          size="icon"
-                                          className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
-                                          onClick={(e) => handleStartEditS3Title(row, e)}
-                                          title="제목 수정"
-                                        >
-                                          <Edit2 className="h-3.5 w-3.5" />
-                                        </Button>
+                                      {row.metadata != null && formatS3Metadata(row.metadata) && (
+                                        <div className="text-[0.65rem] leading-tight text-muted-foreground mt-0.5 max-w-full line-clamp-2" title={formatS3Metadata(row.metadata)}>
+                                          {formatS3Metadata(row.metadata)}
+                                        </div>
                                       )}
                                     </div>
                                   )}
@@ -1025,7 +1094,7 @@ export default function WorklistPage() {
           </Card>
 
           {/* 카드 하단 중앙 업무 추가 버튼 */}
-          <div className="flex justify-center py-6" data-no-rubber>
+          <div className="flex justify-center py-8" data-no-rubber>
             <div ref={dropBtnRef}>
               {(() => {
                 const count = dragCard?.rows.size ?? modalItems.size
@@ -1034,7 +1103,7 @@ export default function WorklistPage() {
                   return (
                     <Button
                       size="lg"
-                      className="shadow-xl transition-all ring-2 ring-primary ring-offset-2 scale-110 pointer-events-none animate-pulse"
+                      className="shadow-xl transition-all ring-2 ring-primary ring-offset-2 scale-110 pointer-events-none animate-pulse py-4 px-6 h-auto"
                     >
                       <Plus className="mr-2 h-4 w-4" />
                       업무 {count}건 추가
@@ -1042,7 +1111,7 @@ export default function WorklistPage() {
                   )
                 }
                 return (
-                  <Button size="lg" asChild className="shadow-lg">
+                  <Button size="lg" asChild className="shadow-lg py-4 px-6 h-auto">
                     <Link href="/admin/analytics?from=worklist">
                       <Plus className="mr-2 h-4 w-4" />
                       {hasCount ? `업무 ${count}건 추가` : "업무 추가"}
