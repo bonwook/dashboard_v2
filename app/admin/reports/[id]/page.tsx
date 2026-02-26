@@ -97,15 +97,40 @@ export default function ReportFormPage() {
               : first.metadata
             const keyValues: Record<string, string | number> = {}
             for (const [k, v] of Object.entries(raw)) {
-              if (v !== undefined && v !== null && v !== "")
-                keyValues[k] = typeof v === "object" ? JSON.stringify(v) : String(v).trim()
+              if (v !== undefined && v !== null && v !== "") {
+                const strValue = typeof v === "object" ? JSON.stringify(v) : String(v)
+                const trimmed = strValue.trim()
+                // 값이 있고, 의미있는 내용인 경우에만 추가
+                if (trimmed && trimmed !== "null" && trimmed !== "undefined") {
+                  keyValues[k] = trimmed
+                }
+              }
             }
             setS3MetadataKeyValues(keyValues)
             const mapped = buildPlaceholderFromS3Metadata(first.metadata)
             const metaPlaceholders: Record<string, string | number> = {}
-            for (const [k, val] of Object.entries(keyValues))
-              metaPlaceholders["s3_meta_" + k] = val
+            
+            // S3 메타데이터를 초기값으로 설정 (placeholder가 아닌 실제 value로)
+            const initialValues: FormValues = {}
+            
+            // 1. S3 메타데이터 원본 값 (s3_meta_* 필드) - 값이 있는 것만
+            for (const [k, val] of Object.entries(keyValues)) {
+              const fieldId = "s3_meta_" + k
+              metaPlaceholders[fieldId] = val
+              initialValues[fieldId] = val
+            }
+            
+            // 2. 매핑된 폼 필드 값 (일반 필드) - 값이 있는 것만
+            for (const [fieldId, val] of Object.entries(mapped)) {
+              if (val !== undefined && val !== null && val !== "") {
+                metaPlaceholders[fieldId] = val
+                initialValues[fieldId] = val
+              }
+            }
+            
             setPlaceholderFromS3({ ...mapped, ...metaPlaceholders })
+            // 초기값을 formValues에 병합 (기존 값이 있으면 유지)
+            setFormValues(prev => ({ ...initialValues, ...prev }))
           } catch {
             // ignore parse error
           }
@@ -120,12 +145,7 @@ export default function ReportFormPage() {
   const handleSave = async () => {
     setSaving(true)
     try {
-      const dataToSave: FormValues = { ...formValues }
-      for (const [fieldId, placeholderValue] of Object.entries(placeholderFromS3)) {
-        const current = dataToSave[fieldId]
-        if (current === undefined || current === null || current === "")
-          dataToSave[fieldId] = placeholderValue
-      }
+      // formValues에 이미 모든 값이 채워져 있으므로 그대로 저장
       const res = await fetch("/api/reports/info", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -133,7 +153,7 @@ export default function ReportFormPage() {
         body: JSON.stringify({
           task_id: taskId,
           case_id: caseId,
-          form_data: dataToSave,
+          form_data: formValues,
         }),
       })
       if (!res.ok) {

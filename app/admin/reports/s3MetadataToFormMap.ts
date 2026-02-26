@@ -50,7 +50,8 @@ export function buildPlaceholderFromS3Metadata(
     const fieldId = S3_METADATA_TO_FORM_FIELD[key]
     if (!fieldId) continue
     const str = String(value).trim()
-    if (!str) continue
+    // 값이 있고, 의미있는 내용인 경우에만 추가
+    if (!str || str === "null" || str === "undefined") continue
     out[fieldId] = str
   }
   return out

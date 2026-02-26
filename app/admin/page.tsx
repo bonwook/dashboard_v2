@@ -69,6 +69,39 @@ export default function AdminOverviewPage() {
     }
   }
 
+  const markAsRead = async (id: number) => {
+    try {
+      const res = await fetch(`/api/s3-updates/${id}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ is_read: true }),
+      })
+      
+      if (res.ok) {
+        setS3Updates(prev => 
+          prev.map(item => 
+            item.id === id ? { ...item, is_read: true } : item
+          )
+        )
+      }
+    } catch (error) {
+      console.error("읽음 상태 업데이트 오류:", error)
+    }
+  }
+
+  const handleRowClick = async (row: S3UpdateRow) => {
+    await markAsRead(row.id)
+    
+    if (row.task_id) {
+      router.push(`/admin/cases/${row.task_id}`)
+    } else {
+      router.push(`/admin/cases/s3-update/${row.id}`)
+    }
+  }
+
   useEffect(() => {
     loadUser()
     loadS3Updates()
@@ -77,7 +110,8 @@ export default function AdminOverviewPage() {
   const todayS3Updates = useMemo(() => {
     const list = s3Updates.filter(
       (row) =>
-        isToday(row.upload_time ?? null) || isToday(row.created_at ?? null)
+        (isToday(row.upload_time ?? null) || isToday(row.created_at ?? null)) &&
+        !row.is_read
     )
     return [...list].sort((a, b) => {
       const bucketA = (a.bucket_name ?? "").trim()
@@ -160,11 +194,7 @@ export default function AdminOverviewPage() {
                       <li key={row.id}>
                         <button
                           type="button"
-                          onClick={() =>
-                            row.task_id
-                              ? router.push(`/admin/cases/${row.task_id}`)
-                              : router.push(`/admin/cases/s3-update/${row.id}`)
-                          }
+                          onClick={() => handleRowClick(row)}
                           className="inline-flex w-fit max-w-full items-center gap-2 rounded-lg border bg-card px-3 py-2 text-left transition-colors hover:bg-muted/50"
                         >
                           <span className="inline-block h-2 w-2 shrink-0 rounded-full bg-amber-500/80" aria-hidden />

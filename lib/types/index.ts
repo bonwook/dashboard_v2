@@ -137,6 +137,7 @@ export interface S3UpdateForTask {
   upload_time?: string | null
   created_at: string
   s3_key: string
+  is_read?: boolean
 }
 
 /** S3 건 목록용 (워크리스트 등, task_id 포함). metadata는 Lambda 등에서 채운 DICOM/NIfTI 태그(JSON). */
@@ -150,4 +151,5 @@ export interface S3UpdateRow {
   created_at: string
   task_id: string | null
   s3_key: string
+  is_read?: boolean
 }

@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server"
 import { verifyToken } from "@/lib/auth"
 import { query } from "@/lib/db/mysql"
 import { toS3Key } from "@/lib/utils/s3Updates"
+import iconv from "iconv-lite"
 
 // GET /api/s3-updates - 미할당 s3_updates 목록 (admin/staff만)
 export async function GET(request: NextRequest) {
@@ -36,30 +37,72 @@ export async function GET(request: NextRequest) {
       }
       const placeholders = ids.map(() => "?").join(",")
       rows = await query(
-        `SELECT id, file_name, bucket_name, file_size, metadata, upload_time, created_at, task_id
+        `SELECT id, file_name, bucket_name, file_size, metadata, upload_time, created_at, task_id, is_read
          FROM s3_updates WHERE id IN (${placeholders})
          ORDER BY COALESCE(upload_time, created_at) DESC`,
         ids
       )
     } else if (taskId) {
       rows = await query(
-        `SELECT id, file_name, bucket_name, file_size, metadata, upload_time, created_at, task_id
+        `SELECT id, file_name, bucket_name, file_size, metadata, upload_time, created_at, task_id, is_read
          FROM s3_updates WHERE task_id = ?
          ORDER BY COALESCE(upload_time, created_at) DESC`,
         [taskId]
       )
     } else {
       rows = await query(
-        `SELECT id, file_name, bucket_name, file_size, metadata, upload_time, created_at, task_id
+        `SELECT id, file_name, bucket_name, file_size, metadata, upload_time, created_at, task_id, is_read
          FROM s3_updates
          ORDER BY COALESCE(upload_time, created_at) DESC`
       )
     }
 
     const list = (rows || []).map((row: Record<string, unknown>) => {
-      const r = row as { file_name: string; bucket_name?: string | null }
+      const r = row as { file_name: string; bucket_name?: string | null; metadata?: unknown }
+      
+      // metadata가 문자열인 경우 파싱하고 UTF-8 인코딩 문제 수정
+      let metadata = r.metadata
+      if (typeof metadata === 'string' && metadata) {
+        try {
+          const parsed = JSON.parse(metadata)
+          // 각 필드의 인코딩 문제 수정
+          const fixed: Record<string, unknown> = {}
+          for (const [key, value] of Object.entries(parsed)) {
+            if (typeof value === 'string') {
+              try {
+                // 여러 인코딩 방식 시도
+                const buffer = Buffer.from(value, 'binary')
+                
+                // 1. UTF-8 시도
+                let decoded = buffer.toString('utf-8')
+                
+                // 2. 여전히 깨진 경우 EUC-KR 시도
+                if (decoded.includes('�') || /[À-ÿ]{2,}/.test(decoded)) {
+                  decoded = iconv.decode(buffer, 'euc-kr')
+                }
+                
+                // 3. 여전히 깨진 경우 CP949 시도
+                if (decoded.includes('�') || /[À-ÿ]{2,}/.test(decoded)) {
+                  decoded = iconv.decode(buffer, 'cp949')
+                }
+                
+                fixed[key] = decoded
+              } catch {
+                fixed[key] = value
+              }
+            } else {
+              fixed[key] = value
+            }
+          }
+          metadata = fixed
+        } catch {
+          // JSON 파싱 실패 시 원본 사용
+        }
+      }
+      
       return {
         ...row,
+        metadata,
         s3_key: toS3Key(r),
       }
     })

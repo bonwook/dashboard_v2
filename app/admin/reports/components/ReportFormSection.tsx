@@ -52,9 +52,16 @@ function FieldInput({
 }) {
   const val = value === undefined || value === null ? "" : String(value)
   const numVal = typeof value === "number" ? value : undefined
-  const placeholder = placeholderOverride !== undefined && placeholderOverride !== null && placeholderOverride !== ""
-    ? String(placeholderOverride)
-    : field.placeholder
+  
+  // placeholderOverride가 있고 유효한 값인 경우에만 사용, 그렇지 않으면 기본 placeholder 사용 안함
+  const placeholder = 
+    placeholderOverride !== undefined && 
+    placeholderOverride !== null && 
+    placeholderOverride !== "" && 
+    String(placeholderOverride) !== "null" && 
+    String(placeholderOverride) !== "undefined"
+      ? String(placeholderOverride)
+      : field.placeholder
 
   if (field.type === "textarea") {
     return (
@@ -148,7 +155,7 @@ export function ReportFormSection({
       <CardHeader className="pb-4">
         <CardTitle className="text-lg font-semibold">의료 리포트 폼</CardTitle>
         <CardDescription className="text-sm text-muted-foreground">
-          포함할 항목을 체크하고 값을 입력하세요. (S3 메타데이터가 있으면 placeholder로 표시되며, 수정 없이 저장 시 자동 입력됩니다.)
+          포함할 항목을 체크하고 값을 입력하세요. S3 메타데이터가 있으면 자동으로 입력되며, 수정/삭제 가능합니다.
         </CardDescription>
       </CardHeader>
       <CardContent className="pt-0">
@@ -179,7 +186,18 @@ export function ReportFormSection({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-y-2 gap-x-8">
                 {DICOM_IMPORTANT_TAGS.map((tag) => {
                   const fieldId = S3_META_PREFIX + tag.key
-                  const placeholder = placeholderOverrides?.[fieldId] ?? s3MetadataKeyValues[tag.key]
+                  const rawPlaceholder = placeholderOverrides?.[fieldId] ?? s3MetadataKeyValues[tag.key]
+                  
+                  // placeholder가 유효한 값인지 확인
+                  const hasValidPlaceholder = 
+                    rawPlaceholder !== undefined && 
+                    rawPlaceholder !== null && 
+                    rawPlaceholder !== "" && 
+                    String(rawPlaceholder) !== "null" && 
+                    String(rawPlaceholder) !== "undefined"
+                  
+                  const placeholder = hasValidPlaceholder ? String(rawPlaceholder) : ""
+                  
                   return (
                     <div
                       key={fieldId}
@@ -204,7 +222,7 @@ export function ReportFormSection({
                         <Input
                           id={fieldId}
                           type="text"
-                          placeholder={placeholder !== undefined && placeholder !== null && placeholder !== "" ? String(placeholder) : ""}
+                          placeholder={placeholder}
                           value={formValues[fieldId] === undefined || formValues[fieldId] === null ? "" : String(formValues[fieldId])}
                           onChange={(e) => onValueChange(fieldId, e.target.value || undefined)}
                           className={INPUT_BOX_CLASS}
