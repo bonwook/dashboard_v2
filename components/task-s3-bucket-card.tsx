@@ -11,14 +11,32 @@ const PII_KEYS = ["Patient Name", "PatientID", "PatientName", "Patient Birth Dat
 
 function formatMetadata(metadata: Record<string, unknown> | string | null | undefined): { summary?: string; entries: [string, string][] } {
   if (metadata == null) return { entries: [] }
-  const obj = typeof metadata === "string" ? (() => { try { return JSON.parse(metadata) } catch { return null } })() : metadata
-  if (!obj || typeof obj !== "object") return { entries: [] }
-  const rec = obj as Record<string, unknown>
-  const summary = typeof rec.summary === "string" && rec.summary.trim() ? rec.summary.trim() : undefined
-  const entries: [string, string][] = Object.entries(rec)
-    .filter(([k]) => k !== "summary" && !PII_KEYS.includes(k) && rec[k] != null && String(rec[k]).trim() !== "")
-    .map(([k, v]) => [k, Array.isArray(v) ? (v as number[]).join("×") : String(v)])
-  return { summary, entries }
+  
+  try {
+    const obj = typeof metadata === "string" ? (() => { try { return JSON.parse(metadata) } catch { return null } })() : metadata
+    if (!obj || typeof obj !== "object") return { entries: [] }
+    const rec = obj as Record<string, unknown>
+    const summary = typeof rec.summary === "string" && rec.summary.trim() ? rec.summary.trim() : undefined
+    
+    const entries: [string, string][] = Object.entries(rec)
+      .filter(([k]) => k !== "summary" && !PII_KEYS.includes(k) && rec[k] != null)
+      .map(([k, v]): [string, string] => {
+        try {
+          const strValue = String(v).trim()
+          if (!strValue) return [k, ""]
+          return [k, Array.isArray(v) ? (v as number[]).join("×") : strValue]
+        } catch {
+          // 값 변환 실패 시 빈 문자열 반환
+          return [k, ""]
+        }
+      })
+      .filter(([, v]) => v !== "")
+    
+    return { summary, entries }
+  } catch (error) {
+    console.error("Failed to format metadata:", error)
+    return { entries: [] }
+  }
 }
 
 function formatBytes(bytes: number | null | undefined): string {

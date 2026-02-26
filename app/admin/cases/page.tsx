@@ -775,7 +775,9 @@ export default function WorklistPage() {
                                 }}
                                 className={`cursor-grab hover:bg-accent/50 bg-amber-500/5 border-l-4 border-l-amber-500/50 border-t border-t-amber-500/20 ${rubberSelectedIds.has(`s3-${row.id}`) ? "ring-inset ring-1 ring-primary bg-primary/10" : ""}`}
                                 onClick={(e) => {
-                                  if ((e.target as HTMLElement).closest("[data-checkbox]")) return
+                                  const target = e.target as HTMLElement
+                                  // 인터랙티브 요소 클릭 시 상세페이지 열기 차단
+                                  if (target.closest("[data-checkbox], button, input, [data-no-detail]")) return
                                   const ds = dragStateRef.current
                                   if (ds?.started) return
                                   setExpandedS3DetailId(isDetailOpen ? null : row.id)
@@ -798,9 +800,9 @@ export default function WorklistPage() {
                                     {rubberSelectedIds.has(`s3-${row.id}`) && <span className="text-primary-foreground text-[10px] leading-none">✓</span>}
                                   </div>
                                 </TableCell>
-                                <TableCell className="font-medium align-top py-2 min-w-0" onClick={(e) => e.stopPropagation()}>
+                                <TableCell className="font-medium align-top py-2 min-w-0">
                                   {editingS3Id === row.id ? (
-                                    <div className="flex items-center gap-1">
+                                    <div className="flex items-center gap-1" data-no-detail>
                                       <Input
                                         value={editingS3Title}
                                         onChange={(e) => setEditingS3Title(e.target.value)}

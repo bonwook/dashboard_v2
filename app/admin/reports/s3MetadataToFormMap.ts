@@ -44,15 +44,33 @@ export function buildPlaceholderFromS3Metadata(
 ): Record<string, string | number> {
   const out: Record<string, string | number> = {}
   if (!metadata) return out
-  const raw = typeof metadata === "string" ? (JSON.parse(metadata || "{}") as Record<string, unknown>) : metadata
-  for (const [key, value] of Object.entries(raw)) {
-    if (value === undefined || value === null || value === "") continue
-    const fieldId = S3_METADATA_TO_FORM_FIELD[key]
-    if (!fieldId) continue
-    const str = String(value).trim()
-    // 값이 있고, 의미있는 내용인 경우에만 추가
-    if (!str || str === "null" || str === "undefined") continue
-    out[fieldId] = str
+  
+  try {
+    const raw = typeof metadata === "string" ? (JSON.parse(metadata || "{}") as Record<string, unknown>) : metadata
+    
+    for (const [key, value] of Object.entries(raw)) {
+      try {
+        if (value === undefined || value === null || value === "") continue
+        const fieldId = S3_METADATA_TO_FORM_FIELD[key]
+        if (!fieldId) continue
+        
+        const str = String(value).trim()
+        // 값이 있고, 의미있는 내용인 경우에만 추가
+        if (!str || str === "null" || str === "undefined") continue
+        out[fieldId] = str
+      } catch (error) {
+        // 개별 값 변환 실패 시 빈 문자열로 처리
+        const fieldId = S3_METADATA_TO_FORM_FIELD[key]
+        if (fieldId) {
+          out[fieldId] = ""
+        }
+      }
+    }
+  } catch (error) {
+    // JSON 파싱 실패 등 전체 실패 시 빈 객체 반환
+    console.error("Failed to parse metadata:", error)
+    return {}
   }
+  
   return out
 }
