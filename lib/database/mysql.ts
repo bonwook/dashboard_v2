@@ -33,7 +33,9 @@ export async function getPool(): Promise<mysql.Pool> {
       connectionLimit: 10,
       queueLimit: 0,
       enableKeepAlive: true,
-      keepAliveInitialDelay: 0,
+      keepAliveInitialDelay: 10,
+      idleTimeout: 60000,
+      maxIdle: 10,
     })
   }
   return globalForPool.__flonicsMysqlPool

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { Fragment, useState } from "react"
 import { Card, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Download, Loader2 } from "lucide-react"
@@ -129,12 +129,12 @@ export function S3BucketInfoCard({ s3Update, compact = false }: S3BucketInfoCard
               <div className="text-xs text-muted-foreground mt-2 space-y-0.5">
                 {summary && <div className="break-words">{summary}</div>}
                 {entries.length > 0 && (
-                  <dl className="grid grid-cols-2 gap-x-2 gap-y-0.5">
+                  <dl className="grid grid-cols-[auto_1fr_auto_1fr] gap-x-2 gap-y-0.5">
                     {entries.slice(0, 10).map(([key, val], i) => (
-                      <span key={i} className="flex gap-1.5 items-baseline min-w-0">
-                        <dt className="font-medium text-foreground/80 shrink-0">{key}:</dt>
-                        <dd className="break-words min-w-0 truncate" title={val}>{val}</dd>
-                      </span>
+                      <Fragment key={i}>
+                        <dt className="font-medium text-foreground/80 whitespace-nowrap">{key}:</dt>
+                        <dd className="truncate min-w-0" title={val}>{val}</dd>
+                      </Fragment>
                     ))}
                   </dl>
                 )}
@@ -194,12 +194,12 @@ export function S3BucketInfoCard({ s3Update, compact = false }: S3BucketInfoCard
             <div className="text-sm mt-3 space-y-1.5">
               {summary && <div className="break-words text-muted-foreground">{summary}</div>}
               {entries.length > 0 && (
-                <dl className="grid grid-cols-2 gap-x-2 gap-y-1 text-muted-foreground">
+                <dl className="grid grid-cols-[auto_1fr_auto_1fr] gap-x-2 gap-y-1 text-muted-foreground">
                   {entries.map(([key, val], i) => (
-                    <span key={i} className="flex gap-1.5 items-baseline min-w-0">
-                      <dt className="font-medium text-foreground/80 shrink-0">{key}:</dt>
-                      <dd className="break-words min-w-0" title={val}>{val}</dd>
-                    </span>
+                    <Fragment key={i}>
+                      <dt className="font-medium text-foreground/80 whitespace-nowrap">{key}:</dt>
+                      <dd className="truncate min-w-0" title={val}>{val}</dd>
+                    </Fragment>
                   ))}
                 </dl>
               )}

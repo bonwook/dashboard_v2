@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useEffect } from "react"
+import { useState, useCallback, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { SafeHtml } from "@/components/safe-html"
@@ -51,6 +51,7 @@ export function TaskCommentSection({
   const [comments, setComments] = useState<CommentItem[]>([])
   const [newComment, setNewComment] = useState("")
   const [isPostingComment, setIsPostingComment] = useState(false)
+  const isPostingRef = useRef(false)
   const { toast } = useToast()
 
   const effectiveTaskIds = propTaskIds?.length ? propTaskIds : taskId ? [taskId] : []
@@ -119,6 +120,8 @@ export function TaskCommentSection({
     if (!primaryTaskId) return
     const content = newComment.trim()
     if (!content) return
+    if (isPostingRef.current) return
+    isPostingRef.current = true
     setIsPostingComment(true)
     try {
       const res = await fetch(`/api/tasks/${primaryTaskId}/comments`, {
@@ -141,6 +144,7 @@ export function TaskCommentSection({
         variant: "destructive",
       })
     } finally {
+      isPostingRef.current = false
       setIsPostingComment(false)
     }
   }, [primaryTaskId, newComment, loadComments, toast])
@@ -248,7 +252,7 @@ export function TaskCommentSection({
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault()
-                if (newComment.trim()) handlePostComment()
+                if (newComment.trim() && !isPostingComment) handlePostComment()
               }
             }}
           />

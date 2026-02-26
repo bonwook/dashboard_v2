@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { Fragment, useState } from "react"
 import { Card, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Loader2, ChevronDown, ChevronUp } from "lucide-react"
@@ -124,12 +124,12 @@ export function TaskS3BucketCard({ s3Updates }: TaskS3BucketCardProps) {
           <div className="text-sm text-muted-foreground mt-2 space-y-1">
             {summary && <p>{summary}</p>}
             {entries.length > 0 && (
-              <dl className="flex flex-wrap gap-x-5 gap-y-0.5">
+              <dl className="grid grid-cols-[auto_1fr_auto_1fr] gap-x-2 gap-y-0.5">
                 {entries.map(([key, val], i) => (
-                  <span key={i} className="flex gap-1 items-baseline">
-                    <dt className="font-medium text-foreground/60 shrink-0">{key}:</dt>
-                    <dd className="truncate max-w-[220px]" title={val}>{val}</dd>
-                  </span>
+                  <Fragment key={i}>
+                    <dt className="font-medium text-foreground/60 whitespace-nowrap">{key}:</dt>
+                    <dd className="truncate min-w-0" title={val}>{val}</dd>
+                  </Fragment>
                 ))}
               </dl>
             )}
