@@ -96,7 +96,7 @@ export async function GET(
   }
 }
 
-// PATCH /api/s3-updates/[id] - s3_update 읽음 상태 업데이트 (admin/staff만)
+// PATCH /api/s3-updates/[id] - s3_update 읽음 상태 또는 제목 업데이트 (admin/staff만)
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -122,11 +122,7 @@ export async function PATCH(
 
     const { id } = await params
     const body = await request.json()
-    const { is_read } = body
-
-    if (typeof is_read !== "boolean") {
-      return NextResponse.json({ error: "is_read must be a boolean" }, { status: 400 })
-    }
+    const { is_read, file_name } = body
 
     const existing = await queryOne(
       `SELECT id FROM s3_updates WHERE id = ?`,
@@ -136,8 +132,27 @@ export async function PATCH(
       return NextResponse.json({ error: "Not found" }, { status: 404 })
     }
 
-    await query(`UPDATE s3_updates SET is_read = ? WHERE id = ?`, [is_read, id])
-    return NextResponse.json({ success: true, message: "읽음 상태가 업데이트되었습니다." })
+    const updates: string[] = []
+    const values: unknown[] = []
+
+    if (typeof is_read === "boolean") {
+      updates.push("is_read = ?")
+      values.push(is_read)
+    }
+
+    if (typeof file_name === "string" && file_name.trim()) {
+      updates.push("file_name = ?")
+      values.push(file_name.trim())
+    }
+
+    if (updates.length === 0) {
+      return NextResponse.json({ error: "No valid fields to update" }, { status: 400 })
+    }
+
+    values.push(id)
+    await query(`UPDATE s3_updates SET ${updates.join(", ")} WHERE id = ?`, values)
+    
+    return NextResponse.json({ success: true, message: "업데이트되었습니다." })
   } catch (error: unknown) {
     console.error("[s3-updates/:id PATCH] Error:", error)
     const message = error instanceof Error ? error.message : "Internal server error"

@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Progress } from "@/components/ui/progress"
-import { Activity, RefreshCw, Search, Trash2, Plus, CheckCircle2, ChevronDown, ChevronRight, Download } from "lucide-react"
+import { Activity, RefreshCw, Search, Trash2, Plus, CheckCircle2, ChevronDown, ChevronRight, Download, Edit2, Check, X } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Fragment } from "react"
 import { useToast } from "@/hooks/use-toast"
@@ -89,6 +89,9 @@ export default function WorklistPage() {
   const [expandedS3DetailId, setExpandedS3DetailId] = useState<number | null>(null)
   /** task_with_s3_group 하위 파일 행 펼침 여부 (task.id → expanded) */
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
+  /** S3 업무 제목 편집 상태 */
+  const [editingS3Id, setEditingS3Id] = useState<number | null>(null)
+  const [editingS3Title, setEditingS3Title] = useState("")
   /** 고무밴드로 시각적으로 선택된 행 */
   const [rubberSelectedIds, setRubberSelectedIds] = useState<Set<string>>(new Set())
   const [batchRequestOpen, setBatchRequestOpen] = useState(false)
@@ -519,6 +522,47 @@ export default function WorklistPage() {
     }
   }
 
+  const handleStartEditS3Title = (s3: S3UpdateRow, e: React.MouseEvent) => {
+    e.stopPropagation()
+    setEditingS3Id(s3.id)
+    setEditingS3Title(s3.file_name || "")
+  }
+
+  const handleCancelEditS3Title = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setEditingS3Id(null)
+    setEditingS3Title("")
+  }
+
+  const handleSaveS3Title = async (s3Id: number, e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!editingS3Title.trim()) {
+      toast({ title: "제목을 입력해주세요", variant: "destructive" })
+      return
+    }
+    try {
+      const response = await fetch(`/api/s3-updates/${s3Id}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ file_name: editingS3Title.trim() }),
+      })
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}))
+        const message = body.error || "제목 수정에 실패했습니다"
+        toast({ title: "수정 실패", description: message, variant: "destructive" })
+        return
+      }
+      toast({ title: "제목이 수정되었습니다" })
+      setEditingS3Id(null)
+      setEditingS3Title("")
+      await loadTasks()
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "제목 수정 중 오류가 발생했습니다."
+      toast({ title: "수정 실패", description: message, variant: "destructive" })
+    }
+  }
+
   const getPriorityBadge = (priority: string) => {
     switch (priority) {
       case "urgent":
@@ -639,9 +683,8 @@ export default function WorklistPage() {
                         <TableHead className="w-10 shrink-0 px-2" />
                         <TableHead className="w-[30%] min-w-[200px] max-w-[380px]">제목</TableHead>
                         <TableHead className="w-[70px] shrink-0 text-center">할당</TableHead>
-                        <TableHead className="w-[11%] min-w-[80px]">요청자</TableHead>
+                        <TableHead className="w-[11%] min-w-[80px]">요청자/버킷</TableHead>
                         <TableHead className="w-[11%] min-w-[80px]">담당자</TableHead>
-                        <TableHead className="w-[72px] shrink-0 text-center">우선순위</TableHead>
                         <TableHead className="w-[90px] shrink-0 text-center">생성일</TableHead>
                         <TableHead className="w-[90px] shrink-0 text-center">마감일</TableHead>
                         <TableHead className="w-[80px] shrink-0" />
@@ -686,11 +729,57 @@ export default function WorklistPage() {
                                     {rubberSelectedIds.has(`s3-${row.id}`) && <span className="text-primary-foreground text-[10px] leading-none">✓</span>}
                                   </div>
                                 </TableCell>
-                                <TableCell className="font-medium align-top py-2 min-w-0">
-                                  <div className="text-sm truncate" title={row.file_name}>{row.file_name}</div>
-                                  {row.metadata != null && formatS3Metadata(row.metadata) && (
-                                    <div className="text-[0.65rem] leading-tight text-muted-foreground mt-0.5 max-w-full line-clamp-2" title={formatS3Metadata(row.metadata)}>
-                                      {formatS3Metadata(row.metadata)}
+                                <TableCell className="font-medium align-top py-2 min-w-0" onClick={(e) => e.stopPropagation()}>
+                                  {editingS3Id === row.id ? (
+                                    <div className="flex items-center gap-1">
+                                      <Input
+                                        value={editingS3Title}
+                                        onChange={(e) => setEditingS3Title(e.target.value)}
+                                        className="h-7 text-sm"
+                                        autoFocus
+                                        onKeyDown={(e) => {
+                                          if (e.key === "Enter") handleSaveS3Title(row.id, e as unknown as React.MouseEvent)
+                                          if (e.key === "Escape") handleCancelEditS3Title(e as unknown as React.MouseEvent)
+                                        }}
+                                      />
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-7 w-7 text-green-600 hover:text-green-700 hover:bg-green-50"
+                                        onClick={(e) => handleSaveS3Title(row.id, e)}
+                                      >
+                                        <Check className="h-4 w-4" />
+                                      </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-7 w-7 text-gray-600 hover:text-gray-700 hover:bg-gray-50"
+                                        onClick={handleCancelEditS3Title}
+                                      >
+                                        <X className="h-4 w-4" />
+                                      </Button>
+                                    </div>
+                                  ) : (
+                                    <div className="flex items-center gap-2 group">
+                                      <div className="flex-1 min-w-0">
+                                        <div className="text-sm truncate" title={row.file_name}>{row.file_name}</div>
+                                        {row.metadata != null && formatS3Metadata(row.metadata) && (
+                                          <div className="text-[0.65rem] leading-tight text-muted-foreground mt-0.5 max-w-full line-clamp-2" title={formatS3Metadata(row.metadata)}>
+                                            {formatS3Metadata(row.metadata)}
+                                          </div>
+                                        )}
+                                      </div>
+                                      {me?.role === "staff" && (
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+                                          onClick={(e) => handleStartEditS3Title(row, e)}
+                                          title="제목 수정"
+                                        >
+                                          <Edit2 className="h-3.5 w-3.5" />
+                                        </Button>
+                                      )}
                                     </div>
                                   )}
                                 </TableCell>
@@ -699,7 +788,6 @@ export default function WorklistPage() {
                                 </TableCell>
                                 <TableCell className="min-w-0 truncate" title={getBucketName(row) || "-"}>{getBucketName(row) || "-"}</TableCell>
                                 <TableCell className="min-w-0 truncate">미지정</TableCell>
-                                <TableCell className="min-w-0 text-center shrink-0">-</TableCell>
                                 <TableCell className="text-sm text-muted-foreground shrink-0 whitespace-nowrap text-center">
                                   {formatDate(row.upload_time || row.created_at)}
                                 </TableCell>
@@ -720,7 +808,7 @@ export default function WorklistPage() {
                               </TableRow>
                               {isDetailOpen && (
                                 <TableRow className="bg-amber-500/5 border-l-4 border-l-amber-500/30">
-                                  <TableCell colSpan={9} className="py-0">
+                                  <TableCell colSpan={8} className="py-0">
                                     <S3InlineDetail row={row} toast={toast} />
                                   </TableCell>
                                 </TableRow>
@@ -774,7 +862,6 @@ export default function WorklistPage() {
                                     ? <Badge variant="secondary" className="font-normal text-xs">공동</Badge>
                                     : <span title={task.assigned_to_name || task.assigned_to_email || ""}>{task.assigned_to_name || task.assigned_to_email || "Unknown"}</span>}
                                 </TableCell>
-                                <TableCell className="shrink-0 text-center">{getPriorityBadge(task.priority)}</TableCell>
                                 <TableCell className="text-sm text-muted-foreground shrink-0 whitespace-nowrap text-center">{formatDate(task.created_at)}</TableCell>
                                 <TableCell className={`text-sm shrink-0 whitespace-nowrap text-center ${expired ? "text-red-600 font-medium" : "text-muted-foreground"}`}>
                                   {task.due_date ? (
@@ -814,7 +901,7 @@ export default function WorklistPage() {
                                         <span className="font-mono text-emerald-600/80 mr-2 shrink-0" aria-hidden>└</span>
                                         <span className="truncate inline-block max-w-full align-middle" title={row.file_name}>{row.file_name}</span>
                                       </TableCell>
-                                      <TableCell colSpan={6} className="py-1.5" />
+                                      <TableCell colSpan={5} className="py-1.5" />
                                       <TableCell className="w-[80px] py-1.5 text-right" onClick={(e) => e.stopPropagation()}>
                                         {(me?.role === "staff") && (
                                           <Button
@@ -831,7 +918,7 @@ export default function WorklistPage() {
                                     </TableRow>
                                     {isSubDetailOpen && (
                                       <TableRow className="bg-emerald-500/5 border-l-4 border-l-emerald-500/20">
-                                        <TableCell colSpan={9} className="py-0">
+                                        <TableCell colSpan={8} className="py-0">
                                           <S3InlineDetail row={row} toast={toast} />
                                         </TableCell>
                                       </TableRow>
@@ -863,7 +950,6 @@ export default function WorklistPage() {
                                 ? <Badge variant="secondary" className="font-normal text-xs">공동</Badge>
                                 : <span title={task.assigned_to_name || task.assigned_to_email || ""}>{task.assigned_to_name || task.assigned_to_email || "Unknown"}</span>}
                             </TableCell>
-                            <TableCell className="shrink-0 text-center">{getPriorityBadge(task.priority)}</TableCell>
                             <TableCell className="text-sm text-muted-foreground shrink-0 whitespace-nowrap text-center">{formatDate(task.created_at)}</TableCell>
                             <TableCell className={`text-sm shrink-0 whitespace-nowrap text-center ${expired ? "text-red-600 font-medium" : "text-muted-foreground"}`}>
                               {task.due_date ? (
@@ -896,7 +982,7 @@ export default function WorklistPage() {
                       {completedEntries.length > 0 && (
                         <>
                           <TableRow className="bg-slate-100/80 dark:bg-slate-800/50 hover:bg-slate-100/80 dark:hover:bg-slate-800/50 border-l-4 border-l-slate-400 dark:border-l-slate-500 [&>td]:bg-slate-100/80 dark:[&>td]:bg-slate-800/50">
-                            <TableCell colSpan={9} className="font-medium text-slate-600 dark:text-slate-400 py-2.5 text-center w-full min-w-0">
+                            <TableCell colSpan={8} className="font-medium text-slate-600 dark:text-slate-400 py-2.5 text-center w-full min-w-0">
                               — 완료된 작업 ({completedEntries.length}건) —
                             </TableCell>
                           </TableRow>
@@ -922,7 +1008,6 @@ export default function WorklistPage() {
                                     ? <Badge variant="secondary" className="font-normal text-xs">공동</Badge>
                                     : (task.assigned_to_name || task.assigned_to_email || "Unknown")}
                                 </TableCell>
-                                <TableCell className="text-center shrink-0">{getPriorityBadge(task.priority)}</TableCell>
                                 <TableCell className="text-sm text-muted-foreground text-center shrink-0 whitespace-nowrap">{formatDate(task.created_at)}</TableCell>
                                 <TableCell className="text-sm text-muted-foreground text-center shrink-0 whitespace-nowrap">{task.due_date ? formatDateOnly(task.due_date) : "-"}</TableCell>
                                 <TableCell className="w-[80px] text-center" />
