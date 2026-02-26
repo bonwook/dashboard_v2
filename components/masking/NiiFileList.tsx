@@ -16,13 +16,13 @@ export function NiiFileList({ files, selectedId, onSelect, onDelete }: NiiFileLi
   if (files.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center gap-2 py-8 text-muted-foreground">
-        <FileImage className="h-10 w-10 opacity-50" />
+        <FileImage className="h-12 w-12 opacity-50" />
         <p className="text-sm">.nii / .nii.gz 파일이 없습니다</p>
       </div>
     )
   }
   return (
-    <ul className="space-y-0.5">
+    <ul className="space-y-1">
       {files.map((file) => (
         <li key={file.id}>
           <div
@@ -36,7 +36,7 @@ export function NiiFileList({ files, selectedId, onSelect, onDelete }: NiiFileLi
               }
             }}
             className={cn(
-              "flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors select-none cursor-pointer",
+              "flex w-full items-center gap-2 rounded-md px-3 py-2.5 text-left text-sm transition-colors select-none cursor-pointer",
               "hover:bg-muted/70",
               selectedId === file.id && "bg-muted",
               file.completed
@@ -45,9 +45,9 @@ export function NiiFileList({ files, selectedId, onSelect, onDelete }: NiiFileLi
             )}
           >
             {file.completed ? (
-              <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-500" />
+              <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-500" />
             ) : (
-              <FileImage className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <FileImage className="h-5 w-5 shrink-0 text-muted-foreground" />
             )}
             <span className="min-w-0 flex-1 truncate" title={file.name}>
               {file.name}
@@ -57,14 +57,14 @@ export function NiiFileList({ files, selectedId, onSelect, onDelete }: NiiFileLi
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive"
+                className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
                 onClick={(e) => {
                   e.stopPropagation()
                   onDelete(file.id)
                 }}
                 aria-label="목록에서 삭제"
               >
-                <Trash2 className="h-3.5 w-3.5" />
+                <Trash2 className="h-4 w-4" />
               </Button>
             )}
           </div>

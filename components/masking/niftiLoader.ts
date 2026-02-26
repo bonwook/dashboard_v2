@@ -335,47 +335,37 @@ export interface BuildNiftiOptions {
   phaseIndex?: number
 }
 
-/** 원본 NIfTI 데이터 + 마스크 반영 이미지로 .nii/.nii.gz 다운로드용 Blob 생성 (헤더 유지) */
-export function buildNiftiBlobWithMask(
+/** 마스크만 담은 NIfTI 파일 생성 (의료 영상 표준: 원본과 별개의 마스크 파일) */
+export function buildMaskNiftiBlob(
   rawData: ArrayBuffer,
   header: NiftiHeaderLike,
-  imageBuffer: ArrayBuffer,
   mask3D: Uint8Array,
   options?: BuildNiftiOptions
 ): Blob {
   const { compressOutput = true, phaseIndex = 0 } = options ?? {}
   const layout = getSliceLayout(header)
-  const { bytesPerVoxel: bpv, datatypeCode, littleEndian } = layout
   const offset = header.vox_offset
-  const out = new ArrayBuffer(offset + imageBuffer.byteLength)
-  const outView = new Uint8Array(out)
-  outView.set(new Uint8Array(rawData, 0, offset), 0)
-  const imgView = new DataView(imageBuffer)
-  const outViewData = new DataView(out, offset, imageBuffer.byteLength)
   const n = layout.totalVoxels
-  const volOff = Math.max(0, Math.min(phaseIndex, layout.nPhase - 1)) * n * bpv
+  
+  // 마스크 파일은 Uint8 (1 byte per voxel)로 저장
+  const maskImageSize = n
+  const out = new ArrayBuffer(offset + maskImageSize)
+  const outView = new Uint8Array(out)
+  
+  // 헤더 복사
+  outView.set(new Uint8Array(rawData, 0, offset), 0)
+  
+  // 헤더의 datatype을 UINT8(2)로 수정
+  const headerView = new DataView(out)
+  headerView.setInt16(70, 2, true) // datatype = DT_UINT8
+  headerView.setInt16(72, 8, true) // bitpix = 8
+  
+  // 마스크 데이터 쓰기 (0 또는 255)
+  const maskData = new Uint8Array(out, offset, maskImageSize)
   for (let i = 0; i < n; i++) {
-    const byteOff = volOff + i * bpv
-    if (mask3D[i] > 0) {
-      if (bpv === 1) outViewData.setUint8(byteOff, 255)
-      else if (bpv === 2) outViewData.setInt16(byteOff, 255, littleEndian)
-      else if (bpv === 4) outViewData.setInt32(byteOff, 255, littleEndian)
-      else if (datatypeCode === 32) {
-        outViewData.setFloat32(byteOff, 255, littleEndian)
-        outViewData.setFloat32(byteOff + 4, 0, littleEndian)
-      } else if (datatypeCode === 64) outViewData.setFloat64(byteOff, 255, littleEndian)
-      else outViewData.setUint8(byteOff, 255)
-    } else {
-      if (bpv === 1) outViewData.setUint8(byteOff, imgView.getUint8(byteOff))
-      else if (bpv === 2) outViewData.setInt16(byteOff, imgView.getInt16(byteOff, littleEndian), littleEndian)
-      else if (bpv === 4) outViewData.setInt32(byteOff, imgView.getInt32(byteOff, littleEndian), littleEndian)
-      else if (datatypeCode === 32) {
-        outViewData.setFloat32(byteOff, imgView.getFloat32(byteOff, littleEndian), littleEndian)
-        outViewData.setFloat32(byteOff + 4, imgView.getFloat32(byteOff + 4, littleEndian), littleEndian)
-      } else if (datatypeCode === 64) outViewData.setFloat64(byteOff, imgView.getFloat64(byteOff, littleEndian), littleEndian)
-      else for (let b = 0; b < bpv; b++) outViewData.setUint8(byteOff + b, imgView.getUint8(byteOff + b))
-    }
+    maskData[i] = mask3D[i] > 0 ? 255 : 0
   }
+  
   if (compressOutput) {
     const compressed = gzipSync(new Uint8Array(out))
     return new Blob([compressed as BlobPart], { type: "application/octet-stream" })

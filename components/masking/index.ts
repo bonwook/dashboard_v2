@@ -7,7 +7,7 @@ export {
   extractSlice,
   getSliceFrom3DMask,
   setSliceIn3DMask,
-  buildNiftiBlobWithMask,
+  buildMaskNiftiBlob,
   getVolumeMinMax,
 } from "./niftiLoader"
 export type { BuildNiftiOptions } from "./niftiLoader"

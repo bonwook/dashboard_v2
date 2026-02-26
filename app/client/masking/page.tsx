@@ -7,7 +7,7 @@ import {
   parseNifti,
   getSliceLayout,
   setSliceIn3DMask,
-  buildNiftiBlobWithMask,
+  buildMaskNiftiBlob,
 } from "@/components/masking/niftiLoader"
 import type { NiiFileItem, NiftiHeaderLike } from "@/components/masking/types"
 import { Upload } from "lucide-react"
@@ -155,16 +155,25 @@ export default function ClientMaskingPage() {
 
   const handleDownloadRequest = useCallback(
     (phaseIndex?: number) => {
-      if (!rawData || !header || !imageBuffer || !mask3D) {
+      if (!rawData || !header || !mask3D) {
         toast({ title: "다운로드 불가", description: "파일을 먼저 로드해 주세요.", variant: "destructive" })
         return
       }
-      const blob = buildNiftiBlobWithMask(rawData, header, imageBuffer, mask3D, {
+      
+      // 마스크 통계 계산
+      const totalVoxels = mask3D.length
+      const maskedVoxels = mask3D.filter(v => v > 0).length
+      const maskedPercentage = ((maskedVoxels / totalVoxels) * 100).toFixed(2)
+      
+      console.log(`마스크 다운로드 - 총 복셀: ${totalVoxels}, 마스킹된 복셀: ${maskedVoxels} (${maskedPercentage}%)`)
+      
+      // 마스크 전용 파일 생성 (0과 255만 포함)
+      const blob = buildMaskNiftiBlob(rawData, header, mask3D, {
         compressOutput: downloadAsGzip,
         phaseIndex: phaseIndex ?? 0,
       })
-      const name = selectedFile?.name ?? "masked.nii"
-      const base = name.replace(/\.nii(\.gz)?$/i, "_masked")
+      const name = selectedFile?.name ?? "mask.nii"
+      const base = name.replace(/\.nii(\.gz)?$/i, "_mask")
       const ext = downloadAsGzip ? ".nii.gz" : ".nii"
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
@@ -172,16 +181,19 @@ export default function ClientMaskingPage() {
       a.download = base + ext
       a.click()
       URL.revokeObjectURL(url)
-      toast({ title: "다운로드", description: "마스킹된 .nii 파일을 저장했습니다." })
+      toast({ 
+        title: "마스크 다운로드", 
+        description: `마스크 파일 저장 완료 (${maskedVoxels}개 복셀, ${maskedPercentage}%)` 
+      })
     },
-    [rawData, header, imageBuffer, mask3D, downloadAsGzip, selectedFile?.name, toast]
+    [rawData, header, mask3D, downloadAsGzip, selectedFile?.name, toast]
   )
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] flex-col">
+    <div className="flex h-[calc(100vh-3rem)] flex-col">
       <div className="flex flex-1 overflow-hidden">
         {/* 좌측: .nii / .nii.gz 파일 리스트 (File Explorer 형태) */}
-        <aside className="flex w-64 shrink-0 flex-col border-r bg-card">
+        <aside className="flex w-56 shrink-0 flex-col border-r bg-card">
           <div className="flex items-center justify-between border-b p-3">
             <span className="text-sm font-medium">.nii / .nii.gz</span>
             <input
@@ -217,12 +229,13 @@ export default function ClientMaskingPage() {
           </div>
         </aside>
         {/* 우측: 마스킹 캔버스 */}
-        <main className="flex flex-1 flex-col overflow-hidden bg-background p-4">
-          <div className="mb-2 flex items-center gap-2">
+        <main className="flex flex-1 flex-col overflow-hidden bg-background p-1">
+          <div className="mb-1 flex items-center gap-2.5 px-1">
             <Checkbox
               id="download-as-gzip"
               checked={downloadAsGzip}
               onCheckedChange={(v) => setDownloadAsGzip(v === true)}
+              className="h-5 w-5"
             />
             <Label htmlFor="download-as-gzip" className="text-sm font-normal cursor-pointer">
               다운로드 시 .nii.gz로 압축 (해제 시 .nii)

@@ -4,7 +4,7 @@ import { useEffect, useCallback, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
 import { Label } from "@/components/ui/label"
-import { Paintbrush, Eraser, ZoomIn, ZoomOut } from "lucide-react"
+import { Paintbrush, Eraser, ZoomIn, ZoomOut, RotateCcw } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { getSliceLayout, getSliceRange, getVolumeMinMax } from "./niftiLoader"
 import type { NiftiHeaderLike, SliceAxis } from "./types"
@@ -47,7 +47,7 @@ export function MaskingCanvas({
   const [focusedPanel, setFocusedPanel] = useState<PanelIndex>(0)
 
   const [tool, setTool] = useState<Tool>("brush")
-  const [brushSize, setBrushSize] = useState(8)
+  const [brushSize, setBrushSize] = useState(5)
   const [brightness, setBrightness] = useState(0)
   const [contrast, setContrast] = useState(0)
   const [globalZoom, setGlobalZoom] = useState(1)
@@ -136,14 +136,15 @@ export function MaskingCanvas({
   }
 
   return (
-    <div className={cn("flex flex-1 flex-col gap-3", className)}>
-      {/* 툴바: 기존과 동일 */}
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="flex rounded-md border p-1">
+    <div className={cn("flex flex-1 flex-col gap-1", className)}>
+      {/* 툴바: 더 컴팩트하게 */}
+      <div className="flex flex-wrap items-center gap-3 px-1 py-0.5">
+        <div className="flex rounded-md border p-0.5">
           <Button
             type="button"
             variant={tool === "brush" ? "secondary" : "ghost"}
             size="sm"
+            className="h-8 px-3"
             onClick={() => setTool("brush")}
           >
             <Paintbrush className="h-4 w-4" />
@@ -152,69 +153,80 @@ export function MaskingCanvas({
             type="button"
             variant={tool === "eraser" ? "secondary" : "ghost"}
             size="sm"
+            className="h-8 px-3"
             onClick={() => setTool("eraser")}
           >
             <Eraser className="h-4 w-4" />
           </Button>
         </div>
         <div className="flex items-center gap-2">
-          <Label className="text-xs">브러시: {brushSize}px</Label>
+          <Label className="text-sm min-w-[100px]">브러시: {brushSize}×{brushSize} 픽셀</Label>
           <Slider
             value={[brushSize]}
             onValueChange={([v]) => setBrushSize(v)}
             min={1}
-            max={40}
+            max={10}
             step={1}
-            className="w-24"
+            className="w-32"
           />
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1.5">
           <ZoomOut
             className="h-4 w-4 cursor-pointer shrink-0"
-            onClick={() => setGlobalZoom((z) => Math.max(0.25, Math.min(4, z - 0.25)))}
+            onClick={() => setGlobalZoom((z) => Math.max(0.25, Math.min(10, z - 0.25)))}
           />
           <ZoomIn
             className="h-4 w-4 cursor-pointer shrink-0"
-            onClick={() => setGlobalZoom((z) => Math.max(0.25, Math.min(4, z + 0.25)))}
+            onClick={() => setGlobalZoom((z) => Math.max(0.25, Math.min(10, z + 0.25)))}
           />
-          <span className="text-xs text-muted-foreground w-10">{Math.round(globalZoom * 100)}%</span>
+          <span className="text-sm text-muted-foreground min-w-[50px]">{Math.round(globalZoom * 100)}%</span>
         </div>
-        <div className="flex gap-1">
-          <Button type="button" variant="outline" size="sm" onClick={onCompleteRequest}>
-            완료
-          </Button>
-          <Button type="button" variant="outline" size="sm" onClick={() => onDownloadRequest(phaseIndex)}>
-            다운로드
-          </Button>
+        <div className="flex items-center gap-2">
+          <Label className="text-sm min-w-[35px]">밝기</Label>
+          <Slider
+            value={[brightness]}
+            onValueChange={([v]) => setBrightness(v)}
+            min={-100}
+            max={100}
+            className="w-28"
+          />
+          <span className="text-xs text-muted-foreground min-w-[30px] text-right">{brightness}</span>
         </div>
-      </div>
-      <div className="flex items-center gap-2">
-        <Label className="text-xs">밝기</Label>
-        <Slider
-          value={[brightness]}
-          onValueChange={([v]) => setBrightness(v)}
-          min={-100}
-          max={100}
-          className="w-32"
-        />
-        <Label className="text-xs">대비</Label>
-        <Slider
-          value={[contrast]}
-          onValueChange={([v]) => setContrast(v)}
-          min={-100}
-          max={100}
-          className="w-32"
-        />
+        <div className="flex items-center gap-2">
+          <Label className="text-sm min-w-[35px]">대비</Label>
+          <Slider
+            value={[contrast]}
+            onValueChange={([v]) => setContrast(v)}
+            min={-100}
+            max={100}
+            className="w-28"
+          />
+          <span className="text-xs text-muted-foreground min-w-[30px] text-right">{contrast}</span>
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-8"
+          onClick={() => {
+            setBrightness(0)
+            setContrast(0)
+          }}
+          title="밝기/대비 초기화"
+        >
+          <RotateCcw className="h-3.5 w-3.5" />
+        </Button>
         {nPhase > 1 && (
           <>
-            <span className="text-xs text-muted-foreground">Phase</span>
-            <span className="text-xs w-16">
+            <span className="text-sm text-muted-foreground">Phase</span>
+            <span className="text-sm min-w-[45px]">
               {phaseIndex + 1} / {nPhase}
             </span>
             <Button
               type="button"
               variant="outline"
               size="sm"
+              className="h-8 px-3"
               onClick={() => setPhaseIndex((p) => Math.max(0, p - 1))}
             >
               −
@@ -223,18 +235,27 @@ export function MaskingCanvas({
               type="button"
               variant="outline"
               size="sm"
+              className="h-8 px-3"
               onClick={() => setPhaseIndex((p) => Math.min(nPhase - 1, p + 1))}
             >
               +
             </Button>
           </>
         )}
+        <div className="flex gap-2 ml-auto">
+          <Button type="button" variant="outline" size="sm" className="h-8 px-4" onClick={onCompleteRequest}>
+            완료
+          </Button>
+          <Button type="button" variant="outline" size="sm" className="h-8 px-4" onClick={() => onDownloadRequest(phaseIndex)}>
+            다운로드
+          </Button>
+        </div>
       </div>
 
       {/* ITK-SNAP 스타일 4분할 뷰 (2x2), AP/FH/RL 방향 레이블 + 십자선 */}
-      <div className="grid grid-cols-2 grid-rows-2 gap-2 flex-1 min-h-0">
+      <div className="grid grid-cols-2 grid-rows-2 gap-1 flex-1 min-h-0">
         <div className="flex flex-col min-h-0">
-          <span className="text-xs text-muted-foreground px-1 py-0.5">Axial</span>
+          <span className="text-xs font-medium text-muted-foreground px-2 py-1 bg-muted/30">Axial</span>
           <SlicePanel
             header={header}
             imageBuffer={imageBuffer}
@@ -261,7 +282,7 @@ export function MaskingCanvas({
           />
         </div>
         <div className="flex flex-col min-h-0">
-          <span className="text-xs text-muted-foreground px-1 py-0.5">Sagittal</span>
+          <span className="text-xs font-medium text-muted-foreground px-2 py-1 bg-muted/30">Sagittal</span>
           <SlicePanel
             header={header}
             imageBuffer={imageBuffer}
@@ -288,7 +309,7 @@ export function MaskingCanvas({
           />
         </div>
         <div className="flex flex-col min-h-0">
-          <span className="text-xs text-muted-foreground px-1 py-0.5">Coronal</span>
+          <span className="text-xs font-medium text-muted-foreground px-2 py-1 bg-muted/30">Coronal</span>
           <SlicePanel
             header={header}
             imageBuffer={imageBuffer}
@@ -315,7 +336,7 @@ export function MaskingCanvas({
           />
         </div>
         <div className="flex flex-col min-h-0">
-          <span className="text-xs text-muted-foreground px-1 py-0.5">
+          <span className="text-xs font-medium text-muted-foreground px-2 py-1 bg-muted/30">
             {activeAxis === "axial" ? "Axial" : activeAxis === "sagittal" ? "Sagittal" : "Coronal"} (활성)
           </span>
           <SlicePanel

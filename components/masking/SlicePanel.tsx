@@ -82,6 +82,8 @@ export function SlicePanel({
   const [pan, setPan] = useState({ x: 0, y: 0 })
   const [scale, setScale] = useState(1)
   const localMaskRef = useRef<Uint8Array | null>(null)
+  const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null)
+  const [cursorScreenPos, setCursorScreenPos] = useState<{ x: number; y: number } | null>(null)
 
   const drawSlice = useCallback(() => {
     const canvas = canvasRef.current
@@ -176,18 +178,26 @@ export function SlicePanel({
   const canvasToSlice = useCallback(
     (clientX: number, clientY: number) => {
       const overlay = overlayRef.current
-      const cont = containerRef.current
-      if (!overlay || !cont) return null
-      const rect = cont.getBoundingClientRect()
-      const effectiveScale = scale * scaleMultiplier
-      const sx = (clientX - rect.left - pan.x) / effectiveScale
-      const sy = (clientY - rect.top - pan.y) / effectiveScale
-      const x = Math.floor(sx)
-      const y = Math.floor(sy)
+      if (!overlay) return null
+      
+      // 오버레이 캔버스의 실제 화면상 위치와 크기를 가져옴
+      const rect = overlay.getBoundingClientRect()
+      
+      // 클라이언트 좌표를 캔버스 기준 상대 좌표로 변환
+      const relX = clientX - rect.left
+      const relY = clientY - rect.top
+      
+      // 캔버스의 실제 크기 대비 화면 크기의 비율로 원본 좌표 계산
+      const scaleX = dims.width / rect.width
+      const scaleY = dims.height / rect.height
+      
+      const x = Math.floor(relX * scaleX)
+      const y = Math.floor(relY * scaleY)
+      
       if (x < 0 || x >= dims.width || y < 0 || y >= dims.height) return null
       return { x, y }
     },
-    [pan, scale, scaleMultiplier, dims.width, dims.height]
+    [dims.width, dims.height]
   )
 
   const applyBrush = useCallback(
@@ -201,11 +211,16 @@ export function SlicePanel({
       } else {
         sliceMask = new Uint8Array(sliceMask)
       }
-      const r = Math.max(1, Math.floor(brushSize / 2))
+      
       const value = tool === "brush" ? 255 : 0
-      for (let dy = -r; dy <= r; dy++) {
-        for (let dx = -r; dx <= r; dx++) {
-          if (dx * dx + dy * dy > r * r) continue
+      
+      // 브러시 크기가 이미지 픽셀 단위로 정확히 적용됨
+      // brushSize=1 → 1x1 픽셀, brushSize=5 → 5x5 픽셀
+      const halfSize = Math.floor(brushSize / 2)
+      
+      // 사각형 브러시: 정확히 brushSize x brushSize 픽셀 영역을 칠함
+      for (let dy = -halfSize; dy < brushSize - halfSize; dy++) {
+        for (let dx = -halfSize; dx < brushSize - halfSize; dx++) {
           const nx = px + dx
           const ny = py + dy
           if (nx >= 0 && nx < w && ny >= 0 && ny < h) {
@@ -255,6 +270,33 @@ export function SlicePanel({
 
   const handlePointerMove = useCallback(
     (e: React.PointerEvent) => {
+      const p = canvasToSlice(e.clientX, e.clientY)
+      setMousePos(p)
+      
+      // 화면 좌표 저장 (브러시 커서용)
+      // 브러시가 칠해질 실제 픽셀 영역의 좌상단 모서리 계산
+      const overlay = overlayRef.current
+      if (overlay && p) {
+        const rect = overlay.getBoundingClientRect()
+        const effectiveScale = scale * scaleMultiplier
+        const halfSize = Math.floor(brushSize / 2)
+        
+        // 실제 칠해질 영역의 시작 픽셀 (좌상단)
+        const brushStartX = p.x - halfSize
+        const brushStartY = p.y - halfSize
+        
+        // 화면 좌표로 변환
+        const screenX = brushStartX * effectiveScale
+        const screenY = brushStartY * effectiveScale
+        
+        setCursorScreenPos({
+          x: screenX,
+          y: screenY
+        })
+      } else {
+        setCursorScreenPos(null)
+      }
+      
       if (isPanning && panStartRef.current) {
         setPan({
           x: panStartRef.current.panX + e.clientX - panStartRef.current.x,
@@ -263,7 +305,6 @@ export function SlicePanel({
         return
       }
       if (!isDrawing) return
-      const p = canvasToSlice(e.clientX, e.clientY)
       if (p && lastPoint) {
         const dx = Math.abs(p.x - lastPoint.x)
         const dy = Math.abs(p.y - lastPoint.y)
@@ -276,7 +317,7 @@ export function SlicePanel({
         setLastPoint(p)
       }
     },
-    [isPanning, isDrawing, lastPoint, canvasToSlice, applyBrush]
+    [isPanning, isDrawing, lastPoint, canvasToSlice, applyBrush, scale, scaleMultiplier, brushSize]
   )
 
   const handlePointerUp = useCallback((e?: React.PointerEvent) => {
@@ -292,13 +333,19 @@ export function SlicePanel({
     setIsPanning(false)
     panStartRef.current = null
   }, [])
+  
+  const handlePointerLeave = useCallback(() => {
+    setMousePos(null)
+    setCursorScreenPos(null)
+    handlePointerUp()
+  }, [handlePointerUp])
 
   const handleWheel = useCallback(
     (e: WheelEvent) => {
       if (!interactive) return
       e.preventDefault()
       if (e.ctrlKey || e.metaKey) {
-        setScale((s) => Math.max(0.25, Math.min(4, s + (e.deltaY > 0 ? -0.1 : 0.1))))
+        setScale((s) => Math.max(0.25, Math.min(10, s + (e.deltaY > 0 ? -0.1 : 0.1))))
       } else {
         const delta = e.deltaY > 0 ? 1 : -1
         onSliceIndexChange(delta)
@@ -353,14 +400,31 @@ export function SlicePanel({
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
             onPointerUp={handlePointerUp}
-            onPointerLeave={() => handlePointerUp()}
+            onPointerLeave={handlePointerLeave}
             onContextMenu={(e) => e.preventDefault()}
             aria-hidden
           />
+          {/* 브러시 미리보기 (마우스 포인터 끝점에 표시) */}
+          {cursorScreenPos && interactive && !isPanning && (
+            <div
+              style={{
+                position: "absolute",
+                left: cursorScreenPos.x,
+                top: cursorScreenPos.y,
+                width: brushSize * (scale * scaleMultiplier),
+                height: brushSize * (scale * scaleMultiplier),
+                border: `1px solid ${tool === "brush" ? "rgba(255, 0, 0, 0.9)" : "rgba(0, 150, 255, 0.9)"}`,
+                backgroundColor: tool === "brush" ? "rgba(255, 0, 0, 0.15)" : "rgba(0, 150, 255, 0.15)",
+                pointerEvents: "none",
+                zIndex: 10,
+                boxSizing: "border-box",
+              }}
+            />
+          )}
         </div>
       </div>
       {sliceLabel != null && (
-        <div className="text-xs text-muted-foreground px-1 py-0.5 text-center">{sliceLabel}</div>
+        <div className="text-xs text-muted-foreground px-2 py-1 text-center bg-muted/20">{sliceLabel}</div>
       )}
     </div>
   )
