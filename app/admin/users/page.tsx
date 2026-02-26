@@ -12,7 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Users, Shield, User, UserCog, Check, X, Loader2 } from "lucide-react"
+import { Users, Shield, User, UserCog, Check, X, Loader2, Trash2 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 
 type Role = "staff" | "client"
@@ -37,6 +37,7 @@ export default function UserManagementPage() {
   const [userRole, setUserRole] = useState<string | null>(null)
   const [actioningId, setActioningId] = useState<string | null>(null)
   const [updatingRoleId, setUpdatingRoleId] = useState<string | null>(null)
+  const [deletingUserId, setDeletingUserId] = useState<string | null>(null)
   const { toast } = useToast()
 
   const allowedRoles: Role[] = ["staff", "client"]
@@ -165,6 +166,46 @@ export default function UserManagementPage() {
       })
     } finally {
       setUpdatingRoleId(null)
+    }
+  }
+
+  const handleDeleteUser = async (userId: string, userName: string | null) => {
+    const confirmMessage = `정말로 ${userName || "이 사용자"}의 계정을 삭제하시겠습니까?\n\n이 작업은 되돌릴 수 없으며, 해당 사용자의 모든 데이터가 삭제됩니다.`
+    
+    if (!confirm(confirmMessage)) {
+      return
+    }
+
+    setDeletingUserId(userId)
+    try {
+      const res = await fetch(`/api/profiles/${userId}`, {
+        method: "DELETE",
+        credentials: "include",
+      })
+      const data = await res.json().catch(() => ({}))
+      
+      if (!res.ok) {
+        toast({
+          title: "삭제 실패",
+          description: data.error || "사용자 삭제에 실패했습니다.",
+          variant: "destructive",
+        })
+        return
+      }
+
+      setUsers((prev) => prev.filter((u) => u.id !== userId))
+      toast({
+        title: "삭제 완료",
+        description: "사용자 계정이 삭제되었습니다.",
+      })
+    } catch (error) {
+      toast({
+        title: "오류",
+        description: "사용자 삭제 중 오류가 발생했습니다.",
+        variant: "destructive",
+      })
+    } finally {
+      setDeletingUserId(null)
     }
   }
 
@@ -301,7 +342,7 @@ export default function UserManagementPage() {
                         <Select
                           value={user.role}
                           onValueChange={(v) => changeRole(user.id, v as Role)}
-                          disabled={updatingRoleId === user.id}
+                          disabled={updatingRoleId === user.id || deletingUserId === user.id}
                         >
                           <SelectTrigger className="w-full">
                             <SelectValue placeholder="역할 선택" />
@@ -318,7 +359,24 @@ export default function UserManagementPage() {
                           <Loader2 className="mt-1 h-4 w-4 animate-spin text-muted-foreground" />
                         )}
                       </TableCell>
-                      <TableCell />
+                      <TableCell>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                          disabled={deletingUserId === user.id || updatingRoleId === user.id}
+                          onClick={() => handleDeleteUser(user.id, user.full_name)}
+                        >
+                          {deletingUserId === user.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <>
+                              <Trash2 className="h-4 w-4 mr-1" />
+                              삭제
+                            </>
+                          )}
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   ))}
                   {pendingStaffRequests.map((req) => (
