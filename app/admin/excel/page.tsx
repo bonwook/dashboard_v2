@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useRef, useMemo, useEffect, useCallback } from "react"
+import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -37,6 +38,7 @@ interface SortConfig {
 }
 
 export default function ExcelPage() {
+  const router = useRouter()
   const { toast } = useToast()
   const [excelData, setExcelData] = useState<ExcelData[]>([])
   const [headers, setHeaders] = useState<string[]>([])
@@ -121,14 +123,23 @@ export default function ExcelPage() {
     setIsSaving(true)
     
     try {
-      const successCount = 0
-      const failCount = 0
+      let successCount = 0
       const errors: string[] = []
 
       // 각 행을 리포트 데이터로 변환하여 저장
       for (let i = 0; i < excelData.length; i++) {
         const row = excelData[i]
         const reportData = mapExcelRowToReportData(row, headers)
+
+        // 매핑된 데이터가 있는지 확인
+        const hasData = Object.keys(reportData).length > 0
+        if (!hasData) {
+          console.warn(`행 ${i + 1}: 매핑된 데이터가 없습니다.`, { row, headers })
+          errors.push(`행 ${i + 1}: 매핑된 데이터가 없습니다.`)
+          continue
+        }
+
+        console.log(`행 ${i + 1} 저장 시도:`, reportData)
 
         // form_data로 저장할 API 호출
         try {
@@ -146,6 +157,8 @@ export default function ExcelPage() {
           if (!response.ok) {
             const error = await response.json()
             errors.push(`행 ${i + 1}: ${error.error || "저장 실패"}`)
+          } else {
+            successCount++
           }
         } catch (error) {
           errors.push(`행 ${i + 1}: ${error instanceof Error ? error.message : "저장 실패"}`)
@@ -155,15 +168,23 @@ export default function ExcelPage() {
       if (errors.length > 0) {
         toast({
           title: "일부 저장 실패",
-          description: `${excelData.length - errors.length}개 저장 성공, ${errors.length}개 실패`,
+          description: `${successCount}개 저장 성공, ${errors.length}개 실패`,
           variant: "destructive",
         })
         console.error("저장 실패한 행:", errors)
+        
+        // 일부라도 성공했으면 페이지 이동
+        if (successCount > 0) {
+          router.push("/admin/reports")
+        }
       } else {
         toast({
           title: "저장 완료",
-          description: `${excelData.length}개의 리포트가 성공적으로 저장되었습니다.`,
+          description: `${successCount}개의 리포트가 성공적으로 저장되었습니다.`,
         })
+        
+        // 바로 의료 리포트 페이지로 이동
+        router.push("/admin/reports")
       }
     } catch (error) {
       toast({

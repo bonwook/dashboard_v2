@@ -57,10 +57,60 @@ export async function GET(request: NextRequest) {
     sql += ` ORDER BY ri.updated_at DESC`
 
     const rows = await query<any>(sql, params)
-    const normalized = (rows || []).map((r: any) => {
+    
+    // reports 테이블에서 bulk 저장된 데이터도 가져오기 (테이블과 필수 컬럼 확인)
+    let bulkReports: any[] = []
+    try {
+      const hasReportsTable = await query<{ cnt: number }>(
+        `SELECT COUNT(*) as cnt FROM information_schema.TABLES
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'reports'`
+      ).then((rows) => Number(rows?.[0]?.cnt || 0) > 0)
+      
+      if (hasReportsTable) {
+        // 필수 컬럼들이 모두 있는지 확인
+        const columns = await query<{ COLUMN_NAME: string }>(
+          `SELECT COLUMN_NAME FROM information_schema.COLUMNS
+           WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'reports'`
+        )
+        
+        const columnNames = new Set(columns.map((c: any) => c.COLUMN_NAME))
+        
+        // form_data 컬럼이 있어야만 조회 (없으면 스킵)
+        if (columnNames.has('form_data')) {
+          const hasTaskId = columnNames.has('task_id')
+          const hasCaseId = columnNames.has('case_id')
+          const hasUploadedBy = columnNames.has('uploaded_by')
+          
+          const taskIdField = hasTaskId ? 'task_id' : 'NULL as task_id'
+          const caseIdField = hasCaseId ? 'case_id' : 'NULL as case_id'
+          const uploadedByField = hasUploadedBy ? 'uploaded_by' : 'NULL as uploaded_by'
+          
+          bulkReports = await query<any>(
+            `SELECT id, ${taskIdField}, ${caseIdField}, form_data, ${uploadedByField}, created_at, updated_at
+             FROM reports
+             ORDER BY updated_at DESC`
+          )
+        }
+      }
+    } catch (error) {
+      console.error('[reports/info] Error loading bulk reports:', error)
+      // 오류가 발생해도 report_info 데이터는 반환
+    }
+    
+    // 두 테이블의 데이터를 합치기
+    const allRows = [...rows, ...bulkReports]
+    
+    const normalized = (allRows || []).map((r: any) => {
       const formData = typeof r.form_data === "string" ? JSON.parse(r.form_data || "{}") : (r.form_data || {})
-      return { ...r, form_data: formData }
+      return { 
+        ...r, 
+        form_data: formData,
+        task_title: r.task_title || "엑셀 업로드",
+        task_id: r.task_id || r.id,
+        case_id: r.case_id || r.id
+      }
     })
+    
     return NextResponse.json({ rows: normalized })
   } catch (e) {
     console.error("[reports/info] GET error:", e)
