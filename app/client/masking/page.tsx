@@ -53,44 +53,90 @@ export default function ClientMaskingPage() {
           data = await res.arrayBuffer()
           name = file.split("/").pop() ?? "file.nii"
         }
+        
         const { header: h, imageBuffer: img, data: raw, wasGzipped: gz } = await parseNifti(data)
         const layout = getSliceLayout(h)
         const totalVoxels = layout.totalVoxels
-        const existingId = options?.existingId
-        let mask: Uint8Array
-        if (existingId != null) {
-          const cached = maskCache.get(existingId)
-          if (cached && cached.length === totalVoxels) {
-            mask = new Uint8Array(cached)
+        
+        // 파일이 마스크인지 원본인지 자동 감지
+        // 마스크 파일은 이름에 "_mask"가 포함되어 있거나, 데이터가 0과 255만 있음
+        const isMaskFile = name.includes("_mask") || (() => {
+          // 샘플링: 처음 1000개 복셀 확인
+          const sampleSize = Math.min(1000, totalVoxels)
+          const sample = new Uint8Array(img, 0, sampleSize)
+          return sample.every(v => v === 0 || v === 255)
+        })()
+        
+        if (isMaskFile && header && imageBuffer) {
+          // 마스크 파일 로드: 원본 이미지는 유지하고 마스크만 교체
+          if (layout.totalVoxels !== (imageBuffer.byteLength / 1)) {
+            // 크기가 다르면 새 파일로 처리
+            const mask = new Uint8Array(totalVoxels)
+            setHeader(h)
+            setImageBuffer(img)
+            setRawData(raw)
+            setMask3D(mask)
+            setWasGzipped(gz)
+            setDownloadAsGzip(gz)
+            
+            const id = generateId()
+            setFiles((prev) => [...prev, { id, name, source: file, completed: false, header: h }])
+            setSelectedId(id)
+            toast({ title: "로드 완료", description: `${name}을(를) 불러왔습니다.` })
+          } else {
+            // 크기가 같으면 마스크만 교체
+            const loadedMask = new Uint8Array(img, 0, totalVoxels)
+            const normalizedMask = new Uint8Array(totalVoxels)
+            for (let i = 0; i < totalVoxels; i++) {
+              normalizedMask[i] = loadedMask[i] > 0 ? 255 : 0
+            }
+            setMask3D(normalizedMask)
+            if (selectedId) maskCache.set(selectedId, normalizedMask)
+            
+            const maskedCount = normalizedMask.filter(v => v > 0).length
+            toast({ 
+              title: "마스크 로드 완료", 
+              description: `원본 위에 마스크 오버레이 (${maskedCount}개 복셀, ${((maskedCount / totalVoxels) * 100).toFixed(1)}%)` 
+            })
+          }
+        } else {
+          // 원본 파일 로드
+          const existingId = options?.existingId
+          let mask: Uint8Array
+          if (existingId != null) {
+            const cached = maskCache.get(existingId)
+            if (cached && cached.length === totalVoxels) {
+              mask = new Uint8Array(cached)
+            } else {
+              mask = new Uint8Array(totalVoxels)
+            }
           } else {
             mask = new Uint8Array(totalVoxels)
           }
-        } else {
-          mask = new Uint8Array(totalVoxels)
-        }
-        setHeader(h)
-        setImageBuffer(img)
-        setRawData(raw)
-        setMask3D(mask)
-        setWasGzipped(gz)
-        setDownloadAsGzip(gz)
-        if (existingId != null) {
-          setSelectedId(existingId)
-          toast({ title: "선택됨", description: `${name}을(를) 표시합니다.` })
-        } else {
-          const id = generateId()
-          setFiles((prev) => [
-            ...prev,
-            {
-              id,
-              name,
-              source: file,
-              completed: false,
-              header: h,
-            },
-          ])
-          setSelectedId(id)
-          toast({ title: "로드 완료", description: `${name}을(를) 불러왔습니다.` })
+          setHeader(h)
+          setImageBuffer(img)
+          setRawData(raw)
+          setMask3D(mask)
+          setWasGzipped(gz)
+          setDownloadAsGzip(gz)
+          if (existingId != null) {
+            setSelectedId(existingId)
+            toast({ title: "선택됨", description: `${name}을(를) 표시합니다.` })
+          } else {
+            const id = generateId()
+            setFiles((prev) => [
+              ...prev,
+              {
+                id,
+                name,
+                source: file,
+                completed: false,
+                header: h,
+              },
+            ])
+            setSelectedId(id)
+            toast({ title: "로드 완료", description: `${name}을(를) 불러왔습니다.` })
+          }
         }
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : "파일 로드 실패"
@@ -99,7 +145,7 @@ export default function ClientMaskingPage() {
         setLoading(false)
       }
     },
-    [toast]
+    [toast, header, imageBuffer, selectedId]
   )
 
   const handleSelect = useCallback(

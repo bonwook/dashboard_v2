@@ -83,7 +83,6 @@ export function SlicePanel({
   const [scale, setScale] = useState(1)
   const localMaskRef = useRef<Uint8Array | null>(null)
   const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null)
-  const [cursorScreenPos, setCursorScreenPos] = useState<{ x: number; y: number } | null>(null)
 
   const drawSlice = useCallback(() => {
     const canvas = canvasRef.current
@@ -144,17 +143,6 @@ export function SlicePanel({
       oCtx.stroke()
       oCtx.setLineDash([])
     }
-    if (axisLabels) {
-      oCtx.font = "12px sans-serif"
-      oCtx.fillStyle = "rgba(255,255,255,0.9)"
-      oCtx.textAlign = "center"
-      oCtx.fillText(axisLabels.top, dims.width / 2, 14)
-      oCtx.fillText(axisLabels.bottom, dims.width / 2, dims.height - 4)
-      oCtx.textAlign = "left"
-      oCtx.fillText(axisLabels.left, 6, dims.height / 2 + 4)
-      oCtx.textAlign = "right"
-      oCtx.fillText(axisLabels.right, dims.width - 6, dims.height / 2 + 4)
-    }
   }, [
     header,
     imageBuffer,
@@ -178,18 +166,19 @@ export function SlicePanel({
   const canvasToSlice = useCallback(
     (clientX: number, clientY: number) => {
       const overlay = overlayRef.current
-      if (!overlay) return null
+      const container = containerRef.current
+      if (!overlay || !container) return null
       
-      // 오버레이 캔버스의 실제 화면상 위치와 크기를 가져옴
-      const rect = overlay.getBoundingClientRect()
+      // 실제로 변형된 캔버스의 화면상 위치
+      const overlayRect = overlay.getBoundingClientRect()
       
-      // 클라이언트 좌표를 캔버스 기준 상대 좌표로 변환
-      const relX = clientX - rect.left
-      const relY = clientY - rect.top
+      // 캔버스 내부의 상대 좌표
+      const relX = clientX - overlayRect.left
+      const relY = clientY - overlayRect.top
       
-      // 캔버스의 실제 크기 대비 화면 크기의 비율로 원본 좌표 계산
-      const scaleX = dims.width / rect.width
-      const scaleY = dims.height / rect.height
+      // 캔버스의 실제 픽셀 크기 대비 화면 크기 비율로 원본 좌표 계산
+      const scaleX = dims.width / overlayRect.width
+      const scaleY = dims.height / overlayRect.height
       
       const x = Math.floor(relX * scaleX)
       const y = Math.floor(relY * scaleY)
@@ -273,30 +262,6 @@ export function SlicePanel({
       const p = canvasToSlice(e.clientX, e.clientY)
       setMousePos(p)
       
-      // 화면 좌표 저장 (브러시 커서용)
-      // 브러시가 칠해질 실제 픽셀 영역의 좌상단 모서리 계산
-      const overlay = overlayRef.current
-      if (overlay && p) {
-        const rect = overlay.getBoundingClientRect()
-        const effectiveScale = scale * scaleMultiplier
-        const halfSize = Math.floor(brushSize / 2)
-        
-        // 실제 칠해질 영역의 시작 픽셀 (좌상단)
-        const brushStartX = p.x - halfSize
-        const brushStartY = p.y - halfSize
-        
-        // 화면 좌표로 변환
-        const screenX = brushStartX * effectiveScale
-        const screenY = brushStartY * effectiveScale
-        
-        setCursorScreenPos({
-          x: screenX,
-          y: screenY
-        })
-      } else {
-        setCursorScreenPos(null)
-      }
-      
       if (isPanning && panStartRef.current) {
         setPan({
           x: panStartRef.current.panX + e.clientX - panStartRef.current.x,
@@ -336,7 +301,6 @@ export function SlicePanel({
   
   const handlePointerLeave = useCallback(() => {
     setMousePos(null)
-    setCursorScreenPos(null)
     handlePointerUp()
   }, [handlePointerUp])
 
@@ -404,24 +368,74 @@ export function SlicePanel({
             onContextMenu={(e) => e.preventDefault()}
             aria-hidden
           />
-          {/* 브러시 미리보기 (마우스 포인터 끝점에 표시) */}
-          {cursorScreenPos && interactive && !isPanning && (
-            <div
-              style={{
-                position: "absolute",
-                left: cursorScreenPos.x,
-                top: cursorScreenPos.y,
-                width: brushSize * (scale * scaleMultiplier),
-                height: brushSize * (scale * scaleMultiplier),
-                border: `1px solid ${tool === "brush" ? "rgba(255, 0, 0, 0.9)" : "rgba(0, 150, 255, 0.9)"}`,
-                backgroundColor: tool === "brush" ? "rgba(255, 0, 0, 0.15)" : "rgba(0, 150, 255, 0.15)",
-                pointerEvents: "none",
-                zIndex: 10,
-                boxSizing: "border-box",
-              }}
-            />
-          )}
         </div>
+        
+        {/* 브러시 미리보기 (transform 외부에 표시) */}
+        {mousePos && interactive && !isPanning && overlayRef.current && (
+          (() => {
+            const overlayRect = overlayRef.current.getBoundingClientRect()
+            const containerRect = containerRef.current?.getBoundingClientRect()
+            if (!containerRect) return null
+            
+            const pixelToScreenRatio = overlayRect.width / dims.width
+            const brushScreenSize = brushSize * pixelToScreenRatio
+            
+            // 픽셀 좌표를 화면 좌표로 변환
+            const screenX = mousePos.x * pixelToScreenRatio + overlayRect.left - containerRect.left
+            const screenY = mousePos.y * pixelToScreenRatio + overlayRect.top - containerRect.top
+            
+            return (
+              <div
+                style={{
+                  position: "absolute",
+                  left: screenX - brushScreenSize / 2,
+                  top: screenY - brushScreenSize / 2,
+                  width: brushScreenSize,
+                  height: brushScreenSize,
+                  border: `2px solid ${tool === "brush" ? "rgba(255, 0, 0, 0.9)" : "rgba(0, 150, 255, 0.9)"}`,
+                  backgroundColor: tool === "brush" ? "rgba(255, 0, 0, 0.15)" : "rgba(0, 150, 255, 0.15)",
+                  pointerEvents: "none",
+                  zIndex: 15,
+                  boxSizing: "border-box",
+                }}
+              />
+            )
+          })()
+        )}
+        
+        {/* 격자 레이블 (transform 외부에서 고정 위치로 표시) */}
+        {axisLabels && (
+          <>
+            {/* 상단 */}
+            <div
+              className="absolute top-2 left-1/2 -translate-x-1/2 text-white font-bold text-sm bg-black/60 px-2 py-0.5 rounded pointer-events-none"
+              style={{ zIndex: 20 }}
+            >
+              {axisLabels.top}
+            </div>
+            {/* 하단 */}
+            <div
+              className="absolute bottom-2 left-1/2 -translate-x-1/2 text-white font-bold text-sm bg-black/60 px-2 py-0.5 rounded pointer-events-none"
+              style={{ zIndex: 20 }}
+            >
+              {axisLabels.bottom}
+            </div>
+            {/* 좌측 */}
+            <div
+              className="absolute left-2 top-1/2 -translate-y-1/2 text-white font-bold text-sm bg-black/60 px-2 py-0.5 rounded pointer-events-none"
+              style={{ zIndex: 20 }}
+            >
+              {axisLabels.left}
+            </div>
+            {/* 우측 */}
+            <div
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-white font-bold text-sm bg-black/60 px-2 py-0.5 rounded pointer-events-none"
+              style={{ zIndex: 20 }}
+            >
+              {axisLabels.right}
+            </div>
+          </>
+        )}
       </div>
       {sliceLabel != null && (
         <div className="text-xs text-muted-foreground px-2 py-1 text-center bg-muted/20">{sliceLabel}</div>

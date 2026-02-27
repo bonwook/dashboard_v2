@@ -66,22 +66,6 @@ export function ClientNav({ user }: ClientNavProps) {
             </Button>
             <div className="h-6 w-px bg-border" />
             <Button
-              variant={pathname.startsWith("/client/segmentation") ? "default" : "ghost"}
-              asChild
-              size="sm"
-              className={
-                pathname.startsWith("/client/segmentation")
-                  ? "bg-primary text-primary-foreground rounded-none"
-                  : "rounded-none"
-              }
-            >
-              <Link href="/client/masking">
-                <Paintbrush className="mr-2 h-4 w-4" />
-                Masking
-              </Link>
-            </Button>
-            <div className="h-6 w-px bg-border" />
-            <Button
               variant={pathname.startsWith("/client/progress") ? "default" : "ghost"}
               asChild
               size="sm"
@@ -94,6 +78,22 @@ export function ClientNav({ user }: ClientNavProps) {
               <Link href="/client/progress">
                 <FileText className="mr-2 h-4 w-4" />
                 Progress
+              </Link>
+            </Button>
+            <div className="h-6 w-px bg-border" />
+            <Button
+              variant={pathname.startsWith("/client/segmentation") ? "default" : "ghost"}
+              asChild
+              size="sm"
+              className={
+                pathname.startsWith("/client/segmentation")
+                  ? "bg-primary text-primary-foreground rounded-none"
+                  : "rounded-none"
+              }
+            >
+              <Link href="/client/masking">
+                <Paintbrush className="mr-2 h-4 w-4" />
+                Masking
               </Link>
             </Button>
             <div className="h-6 w-px bg-border hidden" />
