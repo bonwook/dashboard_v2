@@ -130,13 +130,10 @@ export function S3BucketInfoCard({ s3Update, compact = false }: S3BucketInfoCard
             )}
           </div>
           <div className="flex flex-row flex-wrap items-baseline gap-x-4 gap-y-1 text-xs mt-1.5">
-            <span className="font-medium break-all">{s3Update.file_name}</span>
+            <span className="font-medium break-all">{s3Update.s3_key || s3Update.file_name}</span>
             {s3Update.bucket_name && (
               <span className="break-all text-muted-foreground">{s3Update.bucket_name}</span>
             )}
-            <span className="break-all text-muted-foreground truncate max-w-[180px]" title={s3Update.s3_key}>
-              {s3Update.s3_key}
-            </span>
             <span>{formatBytes(s3Update.file_size)}</span>
             <span>{dateStr}</span>
           </div>
@@ -180,7 +177,7 @@ export function S3BucketInfoCard({ s3Update, compact = false }: S3BucketInfoCard
         <div className="flex flex-row flex-wrap items-baseline gap-x-6 gap-y-1 text-sm mt-1.5">
           <span>
             <span className="text-xs font-medium text-muted-foreground">파일명</span>{" "}
-            <span className="font-medium break-all">{s3Update.file_name}</span>
+            <span className="font-medium break-all">{s3Update.s3_key || s3Update.file_name}</span>
           </span>
           {s3Update.bucket_name && (
             <span>

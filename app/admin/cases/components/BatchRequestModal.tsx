@@ -182,7 +182,7 @@ export function BatchRequestModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>일괄 요청</DialogTitle>
           <DialogDescription>
@@ -195,11 +195,11 @@ export function BatchRequestModal({
         )}
 
         {step === "choice" && (
-          <div className="flex flex-col gap-3 py-2">
+          <div className="flex flex-col gap-4 py-4">
             {canNewTask && (
               <Button
                 variant="outline"
-                className="w-full justify-start"
+                className="w-full justify-start h-12 text-base"
                 onClick={() => {
                   onOpenChange(false)
                   router.push(`/admin/analytics?from=worklist&s3Ids=${s3Ids.join(",")}`)
@@ -211,14 +211,14 @@ export function BatchRequestModal({
             {canAttach && (
               <Button
                 variant="outline"
-                className="w-full justify-start"
+                className="w-full justify-start h-12 text-base"
                 onClick={() => setStep("attach")}
               >
                 기존 업무에 붙이기
               </Button>
             )}
             {!canNewTask && !canAttach && (
-              <p className="text-sm text-muted-foreground">
+              <p className="text-base text-muted-foreground">
                 S3를 1건 이상 선택하면 새 업무로 요청하거나, 업무를 선택한 뒤 기존 업무에 작업을 붙일 수 있습니다.
               </p>
             )}
@@ -226,49 +226,50 @@ export function BatchRequestModal({
         )}
 
         {step === "new_task" && (
-          <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <Label>제목</Label>
+          <div className="space-y-6 py-4">
+            <div className="space-y-3">
+              <Label className="text-base">제목</Label>
               <Input
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="업무 제목"
+                className="h-11 text-base"
               />
             </div>
-            <div className="space-y-2">
-              <Label>담당자</Label>
+            <div className="space-y-3">
+              <Label className="text-base">담당자</Label>
               <Select value={assignedTo} onValueChange={setAssignedTo} disabled={loadingProfiles}>
-                <SelectTrigger>
+                <SelectTrigger className="h-11 text-base">
                   <SelectValue placeholder={loadingProfiles ? "로딩 중..." : "담당자 선택"} />
                 </SelectTrigger>
                 <SelectContent>
                   {profiles.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
+                    <SelectItem key={p.id} value={p.id} className="text-base">
                       {p.full_name || p.email || p.id}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label>우선순위</Label>
+            <div className="space-y-3">
+              <Label className="text-base">우선순위</Label>
               <Select value={priority} onValueChange={setPriority}>
-                <SelectTrigger>
+                <SelectTrigger className="h-11 text-base">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="low">낮음</SelectItem>
-                  <SelectItem value="medium">보통</SelectItem>
-                  <SelectItem value="high">높음</SelectItem>
-                  <SelectItem value="urgent">긴급</SelectItem>
+                  <SelectItem value="low" className="text-base">낮음</SelectItem>
+                  <SelectItem value="medium" className="text-base">보통</SelectItem>
+                  <SelectItem value="high" className="text-base">높음</SelectItem>
+                  <SelectItem value="urgent" className="text-base">긴급</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            <DialogFooter>
-              <Button variant="ghost" onClick={() => setStep("choice")}>
+            <DialogFooter className="pt-4">
+              <Button variant="ghost" onClick={() => setStep("choice")} className="h-10 px-6">
                 뒤로
               </Button>
-              <Button onClick={handleNewTaskSubmit} disabled={submitting}>
+              <Button onClick={handleNewTaskSubmit} disabled={submitting} className="h-10 px-6">
                 {submitting ? "등록 중..." : "등록"}
               </Button>
             </DialogFooter>
@@ -276,33 +277,33 @@ export function BatchRequestModal({
         )}
 
         {step === "attach" && (
-          <div className="space-y-4 py-2">
-            <p className="text-sm text-muted-foreground">
+          <div className="space-y-6 py-4">
+            <p className="text-base text-muted-foreground">
               선택한 S3 {s3Ids.length}건을 아래 업무에 연결합니다.
             </p>
-            <div className="space-y-2">
-              <Label>대상 업무</Label>
+            <div className="space-y-3">
+              <Label className="text-base">대상 업무</Label>
               <Select
                 value={attachTaskId}
                 onValueChange={setAttachTaskId}
               >
-                <SelectTrigger>
+                <SelectTrigger className="h-11 text-base">
                   <SelectValue placeholder="업무 선택" />
                 </SelectTrigger>
                 <SelectContent>
                   {attachTaskOptions.map((t) => (
-                    <SelectItem key={t.id} value={t.id}>
+                    <SelectItem key={t.id} value={t.id} className="text-base">
                       {t.title} {t.assigned_to_name ? `(${t.assigned_to_name})` : ""}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-            <DialogFooter>
-              <Button variant="ghost" onClick={() => setStep("choice")}>
+            <DialogFooter className="pt-4">
+              <Button variant="ghost" onClick={() => setStep("choice")} className="h-10 px-6">
                 뒤로
               </Button>
-              <Button onClick={handleAttachSubmit} disabled={submitting}>
+              <Button onClick={handleAttachSubmit} disabled={submitting} className="h-10 px-6">
                 {submitting ? "연결 중..." : "연결"}
               </Button>
             </DialogFooter>

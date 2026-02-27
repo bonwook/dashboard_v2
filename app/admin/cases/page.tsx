@@ -529,7 +529,7 @@ export default function WorklistPage() {
   const handleStartEditS3Title = (s3: S3UpdateRow, e: React.MouseEvent) => {
     e.stopPropagation()
     setEditingS3Id(s3.id)
-    setEditingS3Title(s3.file_name || "")
+    setEditingS3Title(s3.s3_key || s3.file_name || "")
   }
 
   const handleCancelEditS3Title = (e: React.MouseEvent) => {
@@ -833,7 +833,7 @@ export default function WorklistPage() {
                                   ) : (
                                     <div className="group">
                                       <div className="flex items-start gap-1">
-                                        <div className="text-sm truncate" title={row.file_name}>{row.file_name}</div>
+                                        <div className="text-sm truncate" title={row.s3_key || row.file_name}>{row.s3_key || row.file_name}</div>
                                         {me?.role === "staff" && (
                                           <Button
                                             variant="ghost"
@@ -958,7 +958,7 @@ export default function WorklistPage() {
                                       <TableCell className="w-10 px-2" />
                                       <TableCell className="font-medium pl-8 align-middle py-1.5 text-sm text-muted-foreground min-w-0">
                                         <span className="font-mono text-emerald-600/80 mr-2 shrink-0" aria-hidden>└</span>
-                                        <span className="truncate inline-block max-w-full align-middle" title={row.file_name}>{row.file_name}</span>
+                                        <span className="truncate inline-block max-w-full align-middle" title={row.s3_key || row.file_name}>{row.s3_key || row.file_name}</span>
                                       </TableCell>
                                       <TableCell colSpan={5} className="py-1.5" />
                                       <TableCell className="w-[80px]" />
@@ -1075,8 +1075,12 @@ export default function WorklistPage() {
           <div className="flex justify-center py-8" data-no-rubber>
             <div ref={dropBtnRef}>
               {(() => {
-                const count = dragCard?.rows.size ?? modalItems.size
+                // 드래그 중이면 드래그 개수, 아니면 체크박스 선택 개수
+                const dragCount = dragCard?.rows.size ?? 0
+                const checkboxCount = rubberSelectedIds.size
+                const count = dragCount > 0 ? dragCount : checkboxCount
                 const hasCount = count > 0
+                
                 if (isDragOverBtn) {
                   return (
                     <Button
@@ -1088,11 +1092,29 @@ export default function WorklistPage() {
                     </Button>
                   )
                 }
+                
+                // 체크박스로 선택된 항목이 있으면 버튼으로, 없으면 링크로
+                if (hasCount) {
+                  return (
+                    <Button
+                      size="lg"
+                      className="shadow-lg py-4 px-6 h-auto"
+                      onClick={() => {
+                        setModalItems(new Set(rubberSelectedIds))
+                        setBatchRequestOpen(true)
+                      }}
+                    >
+                      <Plus className="mr-2 h-4 w-4" />
+                      업무 {count}건 추가
+                    </Button>
+                  )
+                }
+                
                 return (
                   <Button size="lg" asChild className="shadow-lg py-4 px-6 h-auto">
                     <Link href="/admin/analytics?from=worklist">
                       <Plus className="mr-2 h-4 w-4" />
-                      {hasCount ? `업무 ${count}건 추가` : "업무 추가"}
+                      업무 추가
                     </Link>
                   </Button>
                 )

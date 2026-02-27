@@ -171,7 +171,7 @@ export function TaskS3BucketCard({ s3Updates }: TaskS3BucketCardProps) {
                   className="flex items-center gap-1.5 text-blue-600 hover:underline disabled:opacity-50 cursor-pointer min-w-0 shrink"
                 >
                   {loadingId === u.id && <Loader2 className="h-4 w-4 animate-spin shrink-0" />}
-                  <span className="truncate" title={u.file_name}>{u.file_name}</span>
+                  <span className="truncate" title={u.s3_key || u.file_name}>{u.s3_key || u.file_name}</span>
                 </button>
                 {(sizeStr !== "-" || dateStr) && (
                   <span className="text-sm text-muted-foreground whitespace-nowrap shrink-0">
