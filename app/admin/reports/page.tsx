@@ -59,7 +59,7 @@ export default function ReportsPage() {
   const [pendingTasks, setPendingTasks] = useState<ReportTask[]>([])
   const [pendingLoading, setPendingLoading] = useState(false)
 
-  // 통계 데이터 로드
+  // 통계 데이터 및 미작성 태스크 개수 로드
   useEffect(() => {
     let cancelled = false
     async function loadStats() {
@@ -80,7 +80,32 @@ export default function ReportsPage() {
       }
       setStatsLoading(false)
     }
+    
+    async function loadPendingCount() {
+      try {
+        const res = await fetch("/api/reports/pending", { credentials: "include", cache: "no-store" })
+        if (!res.ok) return
+        const data = await res.json()
+        if (!cancelled && Array.isArray(data.tasks)) {
+          setPendingTasks(
+            data.tasks.map((r: any) => ({
+              id: r.id,
+              patient_name: r.patient_name ?? r.title ?? "제목 없음",
+              priority: r.priority,
+              created_at: r.created_at,
+              completed_at: r.completed_at,
+              assigned_by_name: r.assigned_by_name,
+              assigned_to_name: r.assigned_to_name,
+            }))
+          )
+        }
+      } catch {
+        // 개수 로드 실패해도 무시
+      }
+    }
+    
     loadStats()
+    loadPendingCount()
     return () => { cancelled = true }
   }, [])
 
@@ -115,6 +140,7 @@ export default function ReportsPage() {
     }
   }
 
+  // 리포트 작성 화면으로 전환 시 데이터 새로고침 (이미 로드된 경우 스킵)
   useEffect(() => {
     if (showPending && pendingTasks.length === 0 && !pendingLoading) {
       loadPendingTasks()
