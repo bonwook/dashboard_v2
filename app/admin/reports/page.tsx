@@ -307,21 +307,21 @@ export default function ReportsPage() {
             ) : (
               <ul className="space-y-3">
                 {pendingTasks.map((t) => (
-                  <li key={t.id} className="border border-gray-200 dark:border-gray-700 rounded-md overflow-hidden">
+                  <li key={t.id} className="border-2 border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow">
                     <Link
                       href={`/admin/reports/${t.id}`}
-                      className="flex items-center justify-between py-3 px-3 hover:bg-muted/60 transition-colors block"
+                      className="flex items-center justify-between py-4 px-4 hover:bg-amber-50 dark:hover:bg-amber-950/20 transition-colors block"
                     >
                       <div>
-                        <p className="font-medium">{t.patient_name}</p>
-                        <p className="text-xs text-muted-foreground">
+                        <p className="font-semibold text-base">{t.patient_name}</p>
+                        <p className="text-sm text-muted-foreground mt-1">
                           {t.completed_at
                             ? `완료: ${new Date(t.completed_at).toLocaleDateString("ko-KR")}`
                             : `생성: ${new Date(t.created_at).toLocaleDateString("ko-KR")}`}
                           {t.assigned_to_name && ` · ${t.assigned_to_name}`}
                         </p>
                       </div>
-                      <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" />
                     </Link>
                   </li>
                 ))}

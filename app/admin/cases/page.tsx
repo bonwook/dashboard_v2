@@ -908,7 +908,7 @@ export default function WorklistPage() {
                                   <div className="flex items-center gap-2 min-w-0">
                                     <span className="truncate" title={task.title}>{task.title}</span>
                                     <Badge variant="secondary" className="font-normal text-xs shrink-0">
-                                      S3 {s3List.length}건
+                                      {s3List[0]?.bucket_name || "S3"} {s3List.length}건
                                     </Badge>
                                   </div>
                                 </TableCell>
