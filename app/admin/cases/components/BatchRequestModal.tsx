@@ -205,7 +205,7 @@ export function BatchRequestModal({
                   router.push(`/admin/analytics?from=worklist&s3Ids=${s3Ids.join(",")}`)
                 }}
               >
-                새 업무로 요청 (선택한 S3 → 업무 1개 생성)
+                새 업무로 요청
               </Button>
             )}
             {canAttach && (

@@ -724,7 +724,7 @@ export default function WorklistPage() {
                     className="h-9 ml-auto"
                   >
                     <Trash2 className="mr-2 h-4 w-4" />
-                    선택 항목 삭제 ({rubberSelectedIds.size})
+                    삭제 ({rubberSelectedIds.size})
                   </Button>
                 )}
               </div>
@@ -751,7 +751,6 @@ export default function WorklistPage() {
                         <TableHead className="w-[11%] min-w-[80px]">담당자</TableHead>
                         <TableHead className="w-[90px] shrink-0 text-center">생성일</TableHead>
                         <TableHead className="w-[90px] shrink-0 text-center">마감일</TableHead>
-                        <TableHead className="w-[80px] shrink-0" />
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -863,23 +862,10 @@ export default function WorklistPage() {
                                   {formatDate(row.upload_time || row.created_at)}
                                 </TableCell>
                                 <TableCell className="text-sm text-muted-foreground shrink-0 whitespace-nowrap text-center">-</TableCell>
-                                <TableCell className="w-[80px] text-right" onClick={(e) => e.stopPropagation()}>
-                                  {(me?.role === "staff") && (
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      onClick={(e) => handleDeleteS3Update(String(row.id), e)}
-                                      className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                                      title="S3 업무 삭제"
-                                    >
-                                      <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                  )}
-                                </TableCell>
                               </TableRow>
                               {isDetailOpen && (
                                 <TableRow className="bg-amber-500/5 border-l-4 border-l-amber-500/30">
-                                  <TableCell colSpan={8} className="py-0">
+                                  <TableCell colSpan={7} className="py-0">
                                     <S3InlineDetail row={row} toast={toast} />
                                   </TableCell>
                                 </TableRow>
@@ -945,19 +931,6 @@ export default function WorklistPage() {
                                     </>
                                   ) : "-"}
                                 </TableCell>
-                                <TableCell className="w-[80px] text-right" onClick={(e) => e.stopPropagation()}>
-                                  {(me?.id === task.assigned_by || me?.role === "staff") && (
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      onClick={(e) => handleDeleteTask(task.id, e)}
-                                      className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                                      title="작업 삭제"
-                                    >
-                                      <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                  )}
-                                </TableCell>
                               </TableRow>
                               {isExpanded && s3List.map((row) => {
                                 const isSubDetailOpen = expandedS3DetailId === row.id
@@ -973,23 +946,10 @@ export default function WorklistPage() {
                                         <span className="truncate inline-block max-w-full align-middle" title={row.file_name}>{row.file_name}</span>
                                       </TableCell>
                                       <TableCell colSpan={5} className="py-1.5" />
-                                      <TableCell className="w-[80px] py-1.5 text-right" onClick={(e) => e.stopPropagation()}>
-                                        {(me?.role === "staff") && (
-                                          <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            onClick={(e) => handleDeleteS3Update(String(row.id), e)}
-                                            className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                                            title="S3 업무 삭제"
-                                          >
-                                            <Trash2 className="h-4 w-4" />
-                                          </Button>
-                                        )}
-                                      </TableCell>
                                     </TableRow>
                                     {isSubDetailOpen && (
                                       <TableRow className="bg-emerald-500/5 border-l-4 border-l-emerald-500/20">
-                                        <TableCell colSpan={8} className="py-0">
+                                        <TableCell colSpan={7} className="py-0">
                                           <S3InlineDetail row={row} toast={toast} />
                                         </TableCell>
                                       </TableRow>
@@ -1033,19 +993,6 @@ export default function WorklistPage() {
                                 </>
                               ) : "-"}
                             </TableCell>
-                            <TableCell className="w-[80px] text-right" onClick={(e) => e.stopPropagation()}>
-                              {(me?.id === task.assigned_by || me?.role === "staff") && (
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={(e) => handleDeleteTask(task.id, e)}
-                                  className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                                  title="작업 삭제"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              )}
-                            </TableCell>
                           </TableRow>
                         )
                       })}
@@ -1053,7 +1000,7 @@ export default function WorklistPage() {
                       {completedEntries.length > 0 && (
                         <>
                           <TableRow className="bg-slate-100/80 dark:bg-slate-800/50 hover:bg-slate-100/80 dark:hover:bg-slate-800/50 border-l-4 border-l-slate-400 dark:border-l-slate-500 [&>td]:bg-slate-100/80 dark:[&>td]:bg-slate-800/50">
-                            <TableCell colSpan={8} className="font-medium text-slate-600 dark:text-slate-400 py-2.5 text-center w-full min-w-0">
+                            <TableCell colSpan={7} className="font-medium text-slate-600 dark:text-slate-400 py-2.5 text-center w-full min-w-0">
                               — 완료된 작업 ({completedEntries.length}건) —
                             </TableCell>
                           </TableRow>
@@ -1081,7 +1028,6 @@ export default function WorklistPage() {
                                 </TableCell>
                                 <TableCell className="text-sm text-muted-foreground text-center shrink-0 whitespace-nowrap">{formatDate(task.created_at)}</TableCell>
                                 <TableCell className="text-sm text-muted-foreground text-center shrink-0 whitespace-nowrap">{task.due_date ? formatDateOnly(task.due_date) : "-"}</TableCell>
-                                <TableCell className="w-[80px] text-center" />
                               </TableRow>
                             )
                           })}
@@ -1099,8 +1045,11 @@ export default function WorklistPage() {
           <div className="flex justify-center py-8" data-no-rubber>
             <div ref={dropBtnRef}>
               {(() => {
-                const count = dragCard?.rows.size ?? modalItems.size
+                const dragCount = dragCard?.rows.size ?? 0
+                const checkboxCount = rubberSelectedIds.size
+                const count = dragCount > 0 ? dragCount : checkboxCount
                 const hasCount = count > 0
+                
                 if (isDragOverBtn) {
                   return (
                     <Button
@@ -1112,11 +1061,28 @@ export default function WorklistPage() {
                     </Button>
                   )
                 }
+                
+                if (hasCount) {
+                  return (
+                    <Button
+                      size="lg"
+                      className="shadow-lg py-4 px-6 h-auto"
+                      onClick={() => {
+                        setModalItems(new Set(rubberSelectedIds))
+                        setBatchRequestOpen(true)
+                      }}
+                    >
+                      <Plus className="mr-2 h-4 w-4" />
+                      업무 {count}건 추가
+                    </Button>
+                  )
+                }
+                
                 return (
                   <Button size="lg" asChild className="shadow-lg py-4 px-6 h-auto">
                     <Link href="/admin/analytics?from=worklist">
                       <Plus className="mr-2 h-4 w-4" />
-                      {hasCount ? `업무 ${count}건 추가` : "업무 추가"}
+                      업무 추가
                     </Link>
                   </Button>
                 )
