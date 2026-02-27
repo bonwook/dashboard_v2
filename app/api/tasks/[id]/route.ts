@@ -401,7 +401,7 @@ export async function PATCH(
     const { id } = await params
     const taskId = id
     const body = await request.json()
-    const { status, description, content, file_keys, comment, comment_file_keys, due_date, is_subtask, title } = body
+    const { status, description, content, file_keys, comment, comment_file_keys, due_date, is_subtask, title, note } = body
 
     // Subtask인 경우 (명시적으로 is_subtask가 true인 경우)
     if (is_subtask) {
@@ -599,6 +599,11 @@ export async function PATCH(
     if (title !== undefined) {
       updateFields.push("title = ?")
       updateParams.push(typeof title === "string" ? title : "")
+    }
+
+    if (note !== undefined) {
+      updateFields.push("note = ?")
+      updateParams.push(note || null)
     }
 
     if (updateFields.length === 1) {

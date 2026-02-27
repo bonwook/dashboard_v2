@@ -37,21 +37,21 @@ export async function GET(request: NextRequest) {
       }
       const placeholders = ids.map(() => "?").join(",")
       rows = await query(
-        `SELECT id, file_name, bucket_name, file_size, metadata, upload_time, created_at, task_id, is_read, s3_key
+        `SELECT id, file_name, bucket_name, file_size, metadata, upload_time, created_at, task_id, is_read, s3_key, note
          FROM s3_updates WHERE id IN (${placeholders})
          ORDER BY COALESCE(upload_time, created_at) DESC`,
         ids
       )
     } else if (taskId) {
       rows = await query(
-        `SELECT id, file_name, bucket_name, file_size, metadata, upload_time, created_at, task_id, is_read, s3_key
+        `SELECT id, file_name, bucket_name, file_size, metadata, upload_time, created_at, task_id, is_read, s3_key, note
          FROM s3_updates WHERE task_id = ?
          ORDER BY COALESCE(upload_time, created_at) DESC`,
         [taskId]
       )
     } else {
       rows = await query(
-        `SELECT id, file_name, bucket_name, file_size, metadata, upload_time, created_at, task_id, is_read, s3_key
+        `SELECT id, file_name, bucket_name, file_size, metadata, upload_time, created_at, task_id, is_read, s3_key, note
          FROM s3_updates
          ORDER BY COALESCE(upload_time, created_at) DESC`
       )

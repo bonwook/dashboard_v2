@@ -257,6 +257,7 @@ export function MaskingCanvas({
         <div className="flex flex-col min-h-0">
           <span className="text-xs font-medium text-muted-foreground px-2 py-1 bg-muted/30">Axial</span>
           <SlicePanel
+            key={`axial-${header.dims[0]}-${header.dims[1]}-${header.dims[2]}`}
             header={header}
             imageBuffer={imageBuffer}
             mask3D={mask3D}
@@ -284,6 +285,7 @@ export function MaskingCanvas({
         <div className="flex flex-col min-h-0">
           <span className="text-xs font-medium text-muted-foreground px-2 py-1 bg-muted/30">Sagittal</span>
           <SlicePanel
+            key={`sagittal-${header.dims[0]}-${header.dims[1]}-${header.dims[2]}`}
             header={header}
             imageBuffer={imageBuffer}
             mask3D={mask3D}
@@ -311,6 +313,7 @@ export function MaskingCanvas({
         <div className="flex flex-col min-h-0">
           <span className="text-xs font-medium text-muted-foreground px-2 py-1 bg-muted/30">Coronal</span>
           <SlicePanel
+            key={`coronal-${header.dims[0]}-${header.dims[1]}-${header.dims[2]}`}
             header={header}
             imageBuffer={imageBuffer}
             mask3D={mask3D}
@@ -340,6 +343,7 @@ export function MaskingCanvas({
             {activeAxis === "axial" ? "Axial" : activeAxis === "sagittal" ? "Sagittal" : "Coronal"} (활성)
           </span>
           <SlicePanel
+            key={`active-${activeAxis}-${header.dims[0]}-${header.dims[1]}-${header.dims[2]}`}
             header={header}
             imageBuffer={imageBuffer}
             mask3D={mask3D}

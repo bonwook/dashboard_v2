@@ -256,6 +256,7 @@ CREATE TABLE IF NOT EXISTS s3_updates (
   upload_time DATETIME,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   task_id CHAR(36) DEFAULT NULL COMMENT '담당자 지정 후 연결된 task_assignments.id',
+  note TEXT DEFAULT NULL COMMENT 'Admin memo for quick reference',
   FOREIGN KEY (task_id) REFERENCES task_assignments(id) ON DELETE SET NULL,
   INDEX idx_task_id (task_id),
   INDEX idx_created_at (created_at)

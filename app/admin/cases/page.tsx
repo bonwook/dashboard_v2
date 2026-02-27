@@ -92,6 +92,12 @@ export default function WorklistPage() {
   /** S3 업무 제목 편집 상태 */
   const [editingS3Id, setEditingS3Id] = useState<number | null>(null)
   const [editingS3Title, setEditingS3Title] = useState("")
+  /** Task 메모 편집 상태 */
+  const [editingTaskNoteId, setEditingTaskNoteId] = useState<string | null>(null)
+  const [editingTaskNote, setEditingTaskNote] = useState("")
+  /** S3 메모 편집 상태 */
+  const [editingS3NoteId, setEditingS3NoteId] = useState<number | null>(null)
+  const [editingS3Note, setEditingS3Note] = useState("")
   /** 고무밴드로 시각적으로 선택된 행 */
   const [rubberSelectedIds, setRubberSelectedIds] = useState<Set<string>>(new Set())
   const [batchRequestOpen, setBatchRequestOpen] = useState(false)
@@ -567,6 +573,80 @@ export default function WorklistPage() {
     }
   }
 
+  const handleStartEditTaskNote = (task: Task, e: React.MouseEvent) => {
+    e.stopPropagation()
+    setEditingTaskNoteId(task.id)
+    setEditingTaskNote(task.note || "")
+  }
+
+  const handleCancelEditTaskNote = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setEditingTaskNoteId(null)
+    setEditingTaskNote("")
+  }
+
+  const handleSaveTaskNote = async (taskId: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    try {
+      const response = await fetch(`/api/tasks/${taskId}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ note: editingTaskNote.trim() || null }),
+      })
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}))
+        const message = body.error || "메모 수정에 실패했습니다"
+        toast({ title: "수정 실패", description: message, variant: "destructive" })
+        return
+      }
+      toast({ title: "메모가 수정되었습니다" })
+      setEditingTaskNoteId(null)
+      setEditingTaskNote("")
+      await loadTasks()
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "메모 수정 중 오류가 발생했습니다."
+      toast({ title: "수정 실패", description: message, variant: "destructive" })
+    }
+  }
+
+  const handleStartEditS3Note = (s3: S3UpdateRow, e: React.MouseEvent) => {
+    e.stopPropagation()
+    setEditingS3NoteId(s3.id)
+    setEditingS3Note(s3.note || "")
+  }
+
+  const handleCancelEditS3Note = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setEditingS3NoteId(null)
+    setEditingS3Note("")
+  }
+
+  const handleSaveS3Note = async (s3Id: number, e: React.MouseEvent) => {
+    e.stopPropagation()
+    try {
+      const response = await fetch(`/api/s3-updates/${s3Id}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ note: editingS3Note.trim() || null }),
+      })
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}))
+        const message = body.error || "메모 수정에 실패했습니다"
+        toast({ title: "수정 실패", description: message, variant: "destructive" })
+        return
+      }
+      toast({ title: "메모가 수정되었습니다" })
+      setEditingS3NoteId(null)
+      setEditingS3Note("")
+      await loadTasks()
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "메모 수정 중 오류가 발생했습니다."
+      toast({ title: "수정 실패", description: message, variant: "destructive" })
+    }
+  }
+
   const handleBulkDeleteS3 = async () => {
     const selectedS3Ids = Array.from(rubberSelectedIds)
       .filter((id) => id.startsWith("s3-"))
@@ -745,13 +825,13 @@ export default function WorklistPage() {
                     <TableHeader>
                       <TableRow>
                         <TableHead className="w-10 shrink-0 px-2" />
-                        <TableHead className="w-[30%] min-w-[200px] max-w-[380px]">제목</TableHead>
+                        <TableHead className="w-[35%]">제목</TableHead>
                         <TableHead className="w-[70px] shrink-0 text-center">할당</TableHead>
-                        <TableHead className="w-[11%] min-w-[80px]">요청자/버킷</TableHead>
-                        <TableHead className="w-[11%] min-w-[80px]">담당자</TableHead>
-                        <TableHead className="w-[90px] shrink-0 text-center">생성일</TableHead>
-                        <TableHead className="w-[90px] shrink-0 text-center">마감일</TableHead>
-                        <TableHead className="w-[80px] shrink-0" />
+                        <TableHead className="w-[13%]">요청자/버킷</TableHead>
+                        <TableHead className="w-[13%]">담당자</TableHead>
+                        <TableHead className="w-[140px] shrink-0 text-center">생성일 / 마감일</TableHead>
+                        <TableHead className="w-[180px] shrink-0 text-center">메모</TableHead>
+                        <TableHead className="w-[60px] shrink-0" />
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -859,11 +939,44 @@ export default function WorklistPage() {
                                 </TableCell>
                                 <TableCell className="min-w-0 truncate" title={getBucketName(row) || "-"}>{getBucketName(row) || "-"}</TableCell>
                                 <TableCell className="min-w-0 truncate">미지정</TableCell>
-                                <TableCell className="text-sm text-muted-foreground shrink-0 whitespace-nowrap text-center">
-                                  {formatDate(row.upload_time || row.created_at)}
+                                <TableCell className="w-[140px] text-center">
+                                  <div className="text-sm text-muted-foreground">
+                                    {formatDateOnly(row.upload_time || row.created_at)} / -
+                                  </div>
                                 </TableCell>
-                                <TableCell className="text-sm text-muted-foreground shrink-0 whitespace-nowrap text-center">-</TableCell>
-                                <TableCell className="w-[80px]" />
+                                <TableCell className="w-[180px]" onClick={(e) => e.stopPropagation()}>
+                                  {editingS3NoteId === row.id ? (
+                                    <div className="flex items-center justify-center gap-1">
+                                      <Input
+                                        value={editingS3Note}
+                                        onChange={(e) => setEditingS3Note(e.target.value)}
+                                        className="h-7 text-sm"
+                                        placeholder="메모..."
+                                        autoFocus
+                                        onKeyDown={(e) => {
+                                          if (e.key === "Enter") handleSaveS3Note(row.id, e as unknown as React.MouseEvent)
+                                          if (e.key === "Escape") handleCancelEditS3Note(e as unknown as React.MouseEvent)
+                                        }}
+                                      />
+                                      <Button variant="ghost" size="icon" className="h-7 w-7 text-green-600 hover:bg-green-50 shrink-0" onClick={(e) => handleSaveS3Note(row.id, e)}>
+                                        <Check className="h-4 w-4" />
+                                      </Button>
+                                      <Button variant="ghost" size="icon" className="h-7 w-7 text-gray-600 hover:bg-gray-50 shrink-0" onClick={handleCancelEditS3Note}>
+                                        <X className="h-4 w-4" />
+                                      </Button>
+                                    </div>
+                                  ) : (
+                                    <div className="group flex items-center justify-center gap-1 min-w-0">
+                                      {me?.role === "staff" && (
+                                        <Button variant="ghost" size="icon" className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" onClick={(e) => handleStartEditS3Note(row, e)} title="메모 수정">
+                                          <Edit2 className="h-3 w-3" />
+                                        </Button>
+                                      )}
+                                      <span className="text-sm truncate flex-1" title={row.note || ""}>{row.note || ""}</span>
+                                    </div>
+                                  )}
+                                </TableCell>
+                                <TableCell className="w-[60px]" />
                               </TableRow>
                               {isDetailOpen && (
                                 <TableRow className="bg-amber-500/5 border-l-4 border-l-amber-500/30">
@@ -921,19 +1034,34 @@ export default function WorklistPage() {
                                     ? <Badge variant="secondary" className="font-normal text-xs">공동</Badge>
                                     : <span title={task.assigned_to_name || task.assigned_to_email || ""}>{task.assigned_to_name || task.assigned_to_email || "Unknown"}</span>}
                                 </TableCell>
-                                <TableCell className="text-sm text-muted-foreground shrink-0 whitespace-nowrap text-center">{formatDate(task.created_at)}</TableCell>
-                                <TableCell className={`text-sm shrink-0 whitespace-nowrap text-center ${expired ? "text-red-600 font-medium" : "text-muted-foreground"}`}>
-                                  {task.due_date ? (
-                                    <>
-                                      {formatDateOnly(task.due_date)}
-                                      {(() => {
-                                        const daysOverdue = getDaysOverdue(task)
-                                        return daysOverdue > 0 ? <span className="text-red-600 font-medium ml-1">+{daysOverdue}</span> : null
-                                      })()}
-                                    </>
-                                  ) : "-"}
+                                <TableCell className="w-[140px] text-center">
+                                  <div className={`text-sm ${expired ? "text-red-600 font-medium" : "text-muted-foreground"}`}>
+                                    {formatDateOnly(task.created_at)} / {task.due_date ? (
+                                      <>
+                                        {formatDateOnly(task.due_date)}
+                                        {(() => {
+                                          const daysOverdue = getDaysOverdue(task)
+                                          return daysOverdue > 0 ? <span className="text-red-600 font-medium ml-1">+{daysOverdue}</span> : null
+                                        })()}
+                                      </>
+                                    ) : "-"}
+                                  </div>
                                 </TableCell>
-                                <TableCell className="w-[80px] text-right" onClick={(e) => e.stopPropagation()}>
+                                <TableCell className="w-[180px]" onClick={(e) => e.stopPropagation()}>
+                                  {editingTaskNoteId === task.id ? (
+                                    <div className="flex items-center justify-center gap-1">
+                                      <Input value={editingTaskNote} onChange={(e) => setEditingTaskNote(e.target.value)} className="h-7 text-sm" placeholder="메모..." autoFocus onKeyDown={(e) => { if (e.key === "Enter") handleSaveTaskNote(task.id, e as unknown as React.MouseEvent); if (e.key === "Escape") handleCancelEditTaskNote(e as unknown as React.MouseEvent); }} />
+                                      <Button variant="ghost" size="icon" className="h-7 w-7 text-green-600 hover:bg-green-50 shrink-0" onClick={(e) => handleSaveTaskNote(task.id, e)}><Check className="h-4 w-4" /></Button>
+                                      <Button variant="ghost" size="icon" className="h-7 w-7 text-gray-600 hover:bg-gray-50 shrink-0" onClick={handleCancelEditTaskNote}><X className="h-4 w-4" /></Button>
+                                    </div>
+                                  ) : (
+                                    <div className="group flex items-center justify-center gap-1 min-w-0">
+                                      {me?.role === "staff" && <Button variant="ghost" size="icon" className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" onClick={(e) => handleStartEditTaskNote(task, e)} title="메모 수정"><Edit2 className="h-3 w-3" /></Button>}
+                                      <span className="text-sm truncate flex-1" title={task.note || ""}>{task.note || ""}</span>
+                                    </div>
+                                  )}
+                                </TableCell>
+                                <TableCell className="w-[60px] text-right" onClick={(e) => e.stopPropagation()}>
                                   {(me?.id === task.assigned_by || me?.role === "staff") && (
                                     <Button
                                       variant="ghost"
@@ -960,8 +1088,8 @@ export default function WorklistPage() {
                                         <span className="font-mono text-emerald-600/80 mr-2 shrink-0" aria-hidden>└</span>
                                         <span className="truncate inline-block max-w-full align-middle" title={row.s3_key || row.file_name}>{row.s3_key || row.file_name}</span>
                                       </TableCell>
-                                      <TableCell colSpan={5} className="py-1.5" />
-                                      <TableCell className="w-[80px]" />
+                                      <TableCell colSpan={6} className="py-1.5" />
+                                      <TableCell className="w-[60px]" />
                                     </TableRow>
                                     {isSubDetailOpen && (
                                       <TableRow className="bg-emerald-500/5 border-l-4 border-l-emerald-500/20">
@@ -997,19 +1125,34 @@ export default function WorklistPage() {
                                 ? <Badge variant="secondary" className="font-normal text-xs">공동</Badge>
                                 : <span title={task.assigned_to_name || task.assigned_to_email || ""}>{task.assigned_to_name || task.assigned_to_email || "Unknown"}</span>}
                             </TableCell>
-                            <TableCell className="text-sm text-muted-foreground shrink-0 whitespace-nowrap text-center">{formatDate(task.created_at)}</TableCell>
-                            <TableCell className={`text-sm shrink-0 whitespace-nowrap text-center ${expired ? "text-red-600 font-medium" : "text-muted-foreground"}`}>
-                              {task.due_date ? (
-                                <>
-                                  {formatDateOnly(task.due_date)}
-                                  {(() => {
-                                    const daysOverdue = getDaysOverdue(task)
-                                    return daysOverdue > 0 ? <span className="text-red-600 font-medium ml-1">+{daysOverdue}</span> : null
-                                  })()}
-                                </>
-                              ) : "-"}
+                            <TableCell className="w-[140px] text-center">
+                              <div className={`text-sm ${expired ? "text-red-600 font-medium" : "text-muted-foreground"}`}>
+                                {formatDateOnly(task.created_at)} / {task.due_date ? (
+                                  <>
+                                    {formatDateOnly(task.due_date)}
+                                    {(() => {
+                                      const daysOverdue = getDaysOverdue(task)
+                                      return daysOverdue > 0 ? <span className="text-red-600 font-medium ml-1">+{daysOverdue}</span> : null
+                                    })()}
+                                  </>
+                                ) : "-"}
+                              </div>
                             </TableCell>
-                            <TableCell className="w-[80px] text-right" onClick={(e) => e.stopPropagation()}>
+                            <TableCell className="w-[180px]" onClick={(e) => e.stopPropagation()}>
+                              {editingTaskNoteId === task.id ? (
+                                <div className="flex items-center justify-center gap-1">
+                                  <Input value={editingTaskNote} onChange={(e) => setEditingTaskNote(e.target.value)} className="h-7 text-sm" placeholder="메모..." autoFocus onKeyDown={(e) => { if (e.key === "Enter") handleSaveTaskNote(task.id, e as unknown as React.MouseEvent); if (e.key === "Escape") handleCancelEditTaskNote(e as unknown as React.MouseEvent); }} />
+                                  <Button variant="ghost" size="icon" className="h-7 w-7 text-green-600 hover:bg-green-50 shrink-0" onClick={(e) => handleSaveTaskNote(task.id, e)}><Check className="h-4 w-4" /></Button>
+                                  <Button variant="ghost" size="icon" className="h-7 w-7 text-gray-600 hover:bg-gray-50 shrink-0" onClick={handleCancelEditTaskNote}><X className="h-4 w-4" /></Button>
+                                </div>
+                              ) : (
+                                <div className="group flex items-center justify-center gap-1 min-w-0">
+                                  {me?.role === "staff" && <Button variant="ghost" size="icon" className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" onClick={(e) => handleStartEditTaskNote(task, e)} title="메모 수정"><Edit2 className="h-3 w-3" /></Button>}
+                                  <span className="text-sm truncate flex-1" title={task.note || ""}>{task.note || ""}</span>
+                                </div>
+                              )}
+                            </TableCell>
+                            <TableCell className="w-[60px] text-right" onClick={(e) => e.stopPropagation()}>
                               {(me?.id === task.assigned_by || me?.role === "staff") && (
                                 <Button
                                   variant="ghost"
@@ -1055,9 +1198,13 @@ export default function WorklistPage() {
                                     ? <Badge variant="secondary" className="font-normal text-xs">공동</Badge>
                                     : (task.assigned_to_name || task.assigned_to_email || "Unknown")}
                                 </TableCell>
-                                <TableCell className="text-sm text-muted-foreground text-center shrink-0 whitespace-nowrap">{formatDate(task.created_at)}</TableCell>
-                                <TableCell className="text-sm text-muted-foreground text-center shrink-0 whitespace-nowrap">{task.due_date ? formatDateOnly(task.due_date) : "-"}</TableCell>
-                                <TableCell className="w-[80px]" />
+                                <TableCell className="w-[140px] text-center">
+                                  <div className="text-sm text-muted-foreground">
+                                    {formatDateOnly(task.created_at)} / {task.due_date ? formatDateOnly(task.due_date) : "-"}
+                                  </div>
+                                </TableCell>
+                                <TableCell className="w-[180px] text-sm text-muted-foreground text-center truncate" title={task.note || ""}>{task.note || ""}</TableCell>
+                                <TableCell className="w-[60px]" />
                               </TableRow>
                             )
                           })}

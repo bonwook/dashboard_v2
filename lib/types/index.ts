@@ -102,6 +102,7 @@ export interface Task {
   file_keys: string[]
   comment_file_keys?: string[]
   due_date?: string | null
+  note?: string | null
   created_at: string
   updated_at: string
   completed_at: string | null
@@ -152,4 +153,5 @@ export interface S3UpdateRow {
   task_id: string | null
   s3_key: string
   is_read?: boolean
+  note?: string | null
 }

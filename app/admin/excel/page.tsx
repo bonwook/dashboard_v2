@@ -5,7 +5,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Upload, FileSpreadsheet, X, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react"
+import { Upload, FileSpreadsheet, X, ArrowUpDown, ArrowUp, ArrowDown, FileText, Loader2 } from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
+import { mapExcelRowToReportData } from "@/lib/utils/excelToReportMapping"
 import {
   Select,
   SelectContent,
@@ -35,11 +37,13 @@ interface SortConfig {
 }
 
 export default function ExcelPage() {
+  const { toast } = useToast()
   const [excelData, setExcelData] = useState<ExcelData[]>([])
   const [headers, setHeaders] = useState<string[]>([])
   const [fileName, setFileName] = useState<string>("")
   const [isLoading, setIsLoading] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const tableContainerRef = useRef<HTMLDivElement>(null)
   
@@ -102,6 +106,75 @@ export default function ExcelPage() {
       (window as any).gc()
     }
   }, [])
+
+  // 의료 리포트로 저장
+  const handleSaveAsReports = async () => {
+    if (excelData.length === 0) {
+      toast({
+        title: "오류",
+        description: "저장할 데이터가 없습니다.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsSaving(true)
+    
+    try {
+      const successCount = 0
+      const failCount = 0
+      const errors: string[] = []
+
+      // 각 행을 리포트 데이터로 변환하여 저장
+      for (let i = 0; i < excelData.length; i++) {
+        const row = excelData[i]
+        const reportData = mapExcelRowToReportData(row, headers)
+
+        // form_data로 저장할 API 호출
+        try {
+          const response = await authenticatedFetch("/api/reports/bulk", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              form_data: reportData,
+              row_index: i + 1,
+            }),
+          })
+
+          if (!response.ok) {
+            const error = await response.json()
+            errors.push(`행 ${i + 1}: ${error.error || "저장 실패"}`)
+          }
+        } catch (error) {
+          errors.push(`행 ${i + 1}: ${error instanceof Error ? error.message : "저장 실패"}`)
+        }
+      }
+
+      if (errors.length > 0) {
+        toast({
+          title: "일부 저장 실패",
+          description: `${excelData.length - errors.length}개 저장 성공, ${errors.length}개 실패`,
+          variant: "destructive",
+        })
+        console.error("저장 실패한 행:", errors)
+      } else {
+        toast({
+          title: "저장 완료",
+          description: `${excelData.length}개의 리포트가 성공적으로 저장되었습니다.`,
+        })
+      }
+    } catch (error) {
+      toast({
+        title: "저장 실패",
+        description: error instanceof Error ? error.message : "알 수 없는 오류가 발생했습니다.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSaving(false)
+    }
+  }
 
   // 현재 사용자 ID 가져오기
   useEffect(() => {
@@ -803,6 +876,25 @@ export default function ExcelPage() {
                 </CardDescription>
               </div>
               <div className="flex items-center gap-2">
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={handleSaveAsReports}
+                  disabled={isSaving || excelData.length === 0}
+                  className="bg-green-600 hover:bg-green-700"
+                >
+                  {isSaving ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      저장 중...
+                    </>
+                  ) : (
+                    <>
+                      <FileText className="mr-2 h-4 w-4" />
+                      의료 리포트로 저장
+                    </>
+                  )}
+                </Button>
                 <Button
                   variant={isHighlightMode ? "default" : "outline"}
                   size="sm"

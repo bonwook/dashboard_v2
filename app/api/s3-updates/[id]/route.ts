@@ -30,7 +30,7 @@ export async function GET(
 
     const { id } = await params
     const row = await queryOne(
-      `SELECT id, file_name, bucket_name, file_size, metadata, upload_time, created_at, task_id, is_read, s3_key
+      `SELECT id, file_name, bucket_name, file_size, metadata, upload_time, created_at, task_id, is_read, s3_key, note
        FROM s3_updates WHERE id = ?`,
       [id]
     )
@@ -123,7 +123,7 @@ export async function PATCH(
 
     const { id } = await params
     const body = await request.json()
-    const { is_read, file_name } = body
+    const { is_read, file_name, note } = body
 
     const existing = await queryOne(
       `SELECT id FROM s3_updates WHERE id = ?`,
@@ -144,6 +144,11 @@ export async function PATCH(
     if (typeof file_name === "string" && file_name.trim()) {
       updates.push("file_name = ?")
       values.push(file_name.trim())
+    }
+
+    if (note !== undefined) {
+      updates.push("note = ?")
+      values.push(note || null)
     }
 
     if (updates.length === 0) {
