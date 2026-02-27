@@ -30,7 +30,7 @@ export async function GET(
 
     const { id } = await params
     const row = await queryOne(
-      `SELECT id, file_name, bucket_name, file_size, metadata, upload_time, created_at, task_id, is_read
+      `SELECT id, file_name, bucket_name, file_size, metadata, upload_time, created_at, task_id, is_read, s3_key
        FROM s3_updates WHERE id = ?`,
       [id]
     )
@@ -39,7 +39,7 @@ export async function GET(
       return NextResponse.json({ error: "Not found" }, { status: 404 })
     }
 
-    const r = row as Record<string, unknown> & { task_id?: string | null; status?: string | null; is_read?: boolean | number; metadata?: unknown }
+    const r = row as Record<string, unknown> & { task_id?: string | null; status?: string | null; is_read?: boolean | number; metadata?: unknown; s3_key?: string | null; file_name: string; bucket_name?: string | null }
     
     // metadata 인코딩 수정
     let metadata = r.metadata
@@ -85,7 +85,8 @@ export async function GET(
       task_id: r.task_id ?? null,
       status: r.status ?? "pending",
       is_read: Boolean(r.is_read),
-      s3_key: toS3Key(r as { file_name: string; bucket_name?: string | null }),
+      // s3_key가 DB에 있으면 사용, 없으면 toS3Key로 생성 (하위 호환성)
+      s3_key: r.s3_key || toS3Key(r),
     }
 
     return NextResponse.json({ s3Update })

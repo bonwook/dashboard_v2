@@ -37,28 +37,28 @@ export async function GET(request: NextRequest) {
       }
       const placeholders = ids.map(() => "?").join(",")
       rows = await query(
-        `SELECT id, file_name, bucket_name, file_size, metadata, upload_time, created_at, task_id, is_read
+        `SELECT id, file_name, bucket_name, file_size, metadata, upload_time, created_at, task_id, is_read, s3_key
          FROM s3_updates WHERE id IN (${placeholders})
          ORDER BY COALESCE(upload_time, created_at) DESC`,
         ids
       )
     } else if (taskId) {
       rows = await query(
-        `SELECT id, file_name, bucket_name, file_size, metadata, upload_time, created_at, task_id, is_read
+        `SELECT id, file_name, bucket_name, file_size, metadata, upload_time, created_at, task_id, is_read, s3_key
          FROM s3_updates WHERE task_id = ?
          ORDER BY COALESCE(upload_time, created_at) DESC`,
         [taskId]
       )
     } else {
       rows = await query(
-        `SELECT id, file_name, bucket_name, file_size, metadata, upload_time, created_at, task_id, is_read
+        `SELECT id, file_name, bucket_name, file_size, metadata, upload_time, created_at, task_id, is_read, s3_key
          FROM s3_updates
          ORDER BY COALESCE(upload_time, created_at) DESC`
       )
     }
 
     const list = (rows || []).map((row: Record<string, unknown>) => {
-      const r = row as { file_name: string; bucket_name?: string | null; metadata?: unknown }
+      const r = row as { file_name: string; bucket_name?: string | null; metadata?: unknown; s3_key?: string | null }
       
       // metadata가 문자열인 경우 파싱하고 UTF-8 인코딩 문제 수정
       let metadata = r.metadata
@@ -103,7 +103,8 @@ export async function GET(request: NextRequest) {
       return {
         ...row,
         metadata,
-        s3_key: toS3Key(r),
+        // s3_key가 DB에 있으면 사용, 없으면 toS3Key로 생성 (하위 호환성)
+        s3_key: r.s3_key || toS3Key(r),
       }
     })
 

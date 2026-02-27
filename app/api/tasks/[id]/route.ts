@@ -179,13 +179,14 @@ export async function GET(
       let s3Updates: Array<Record<string, unknown> & { s3_key: string }> = []
       try {
         const s3Rows = await query(
-          `SELECT id, file_name, bucket_name, file_size, metadata, upload_time, created_at, task_id FROM s3_updates WHERE task_id = ? ORDER BY created_at ASC`,
+          `SELECT id, file_name, bucket_name, file_size, metadata, upload_time, created_at, task_id, s3_key FROM s3_updates WHERE task_id = ? ORDER BY created_at ASC`,
           [taskId]
         )
         if (s3Rows && s3Rows.length > 0) {
           s3Updates = s3Rows.map((row: any) => {
-            const r = row as { file_name: string; bucket_name?: string | null }
-            return { ...row, s3_key: toS3Key(r) }
+            const r = row as { file_name: string; bucket_name?: string | null; s3_key?: string | null }
+            // s3_key가 DB에 있으면 사용, 없으면 toS3Key로 생성 (하위 호환성)
+            return { ...row, s3_key: r.s3_key || toS3Key(r) }
           })
         }
       } catch {
@@ -282,13 +283,14 @@ export async function GET(
       let parentS3Updates: Array<Record<string, unknown> & { s3_key: string }> = []
       try {
         const parentS3Rows = await query(
-          `SELECT id, file_name, bucket_name, file_size, metadata, upload_time, created_at, task_id FROM s3_updates WHERE task_id = ? ORDER BY created_at ASC`,
+          `SELECT id, file_name, bucket_name, file_size, metadata, upload_time, created_at, task_id, s3_key FROM s3_updates WHERE task_id = ? ORDER BY created_at ASC`,
           [subtask.task_id]
         )
         if (parentS3Rows && parentS3Rows.length > 0) {
           parentS3Updates = parentS3Rows.map((row: any) => {
-            const r = row as { file_name: string; bucket_name?: string | null }
-            return { ...row, s3_key: toS3Key(r) }
+            const r = row as { file_name: string; bucket_name?: string | null; s3_key?: string | null }
+            // s3_key가 DB에 있으면 사용, 없으면 toS3Key로 생성 (하위 호환성)
+            return { ...row, s3_key: r.s3_key || toS3Key(r) }
           })
         }
       } catch {

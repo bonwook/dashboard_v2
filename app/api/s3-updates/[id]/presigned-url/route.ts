@@ -38,7 +38,7 @@ export async function GET(
 
     const { id } = await params
     const row = await queryOne(
-      `SELECT file_name, bucket_name FROM s3_updates WHERE id = ?`,
+      `SELECT file_name, bucket_name, s3_key FROM s3_updates WHERE id = ?`,
       [id]
     )
 
@@ -50,7 +50,7 @@ export async function GET(
       )
     }
 
-    const r = row as { file_name: string; bucket_name?: string | null }
+    const r = row as { file_name: string; bucket_name?: string | null; s3_key?: string | null }
     const bucketName = (r.bucket_name ?? "").trim()
     if (!bucketName) {
       return NextResponse.json(
@@ -58,10 +58,13 @@ export async function GET(
         { status: 400 }
       )
     }
-    const s3Key = normalizeS3Key(r.file_name ?? "")
+    
+    // s3_key가 있으면 사용, 없으면 file_name 사용 (하위 호환성)
+    const rawKey = r.s3_key ?? r.file_name ?? ""
+    const s3Key = normalizeS3Key(rawKey)
     if (!s3Key) {
       return NextResponse.json(
-        { error: "S3 객체 키를 확인할 수 없습니다. file_name을 확인하세요." },
+        { error: "S3 객체 키를 확인할 수 없습니다. s3_key 또는 file_name을 확인하세요." },
         { status: 400 }
       )
     }
