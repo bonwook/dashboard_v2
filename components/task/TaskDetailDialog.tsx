@@ -678,53 +678,42 @@ export function TaskDetailDialog({
                 <Label className="text-sm font-semibold">담당자 첨부파일</Label>
                 <div className="flex flex-wrap gap-2 p-2 border border-transparent rounded-md bg-transparent min-h-[52px]">
                   {commentResolvedFileKeys.length > 0 ? (
-                    (() => {
-                      const assigneeFileKeys = commentResolvedFileKeys.filter(
-                        (r) => r.userId === displayTask.assigned_to
-                      )
-                      return assigneeFileKeys.length > 0 ? (
-                        assigneeFileKeys.map((resolved, index) => {
-                          const expiry = calculateFileExpiry(resolved.uploadedAt ?? null)
-                          return (
-                            <div
-                              key={index}
-                              role="button"
-                              tabIndex={expiry.isExpired ? -1 : 0}
-                              className={`flex items-center gap-2 px-2 py-1 rounded border text-sm ${expiry.isExpired ? "bg-red-50 border-red-300 dark:bg-red-950/20 dark:border-red-800 cursor-not-allowed" : "bg-transparent cursor-pointer"}`}
-                              onClick={() => {
-                                if (expiry.isExpired) return
-                                handleDownloadWithProgress(
-                                  resolved.s3Key,
-                                  resolved.fileName
-                                )
-                              }}
-                              onKeyDown={(e) => {
-                                if (expiry.isExpired) return
-                                if (e.key === "Enter")
-                                  handleDownloadWithProgress(
-                                    resolved.s3Key,
-                                    resolved.fileName
-                                  )
-                              }}
-                            >
-                              <FileText className={`h-4 w-4 shrink-0 ${expiry.isExpired ? "text-red-500" : "text-muted-foreground"}`} />
-                              <span className={`max-w-[200px] truncate ${expiry.isExpired ? "text-red-600 dark:text-red-400 line-through" : "hover:underline"}`}>
-                                {resolved.fileName}
-                              </span>
-                              <span
-                                className={`text-xs shrink-0 ${expiry.isExpired ? "text-red-600 dark:text-red-400 font-medium" : "text-muted-foreground"}`}
-                              >
-                                ({expiry.expiryText})
-                              </span>
-                            </div>
-                          )
-                        })
-                      ) : (
-                        <div className="w-full border rounded-md bg-muted/30 p-4 text-center text-muted-foreground min-h-[52px] flex items-center justify-center text-sm">
-                          첨부파일이 없습니다
+                    commentResolvedFileKeys.map((resolved, index) => {
+                      const expiry = calculateFileExpiry(resolved.uploadedAt ?? null)
+                      return (
+                        <div
+                          key={index}
+                          role="button"
+                          tabIndex={expiry.isExpired ? -1 : 0}
+                          className={`flex items-center gap-2 px-2 py-1 rounded border text-sm ${expiry.isExpired ? "bg-red-50 border-red-300 dark:bg-red-950/20 dark:border-red-800 cursor-not-allowed" : "bg-transparent cursor-pointer"}`}
+                          onClick={() => {
+                            if (expiry.isExpired) return
+                            handleDownloadWithProgress(
+                              resolved.s3Key,
+                              resolved.fileName
+                            )
+                          }}
+                          onKeyDown={(e) => {
+                            if (expiry.isExpired) return
+                            if (e.key === "Enter")
+                              handleDownloadWithProgress(
+                                resolved.s3Key,
+                                resolved.fileName
+                              )
+                          }}
+                        >
+                          <FileText className={`h-4 w-4 shrink-0 ${expiry.isExpired ? "text-red-500" : "text-muted-foreground"}`} />
+                          <span className={`max-w-[200px] truncate ${expiry.isExpired ? "text-red-600 dark:text-red-400 line-through" : "hover:underline"}`}>
+                            {resolved.fileName}
+                          </span>
+                          <span
+                            className={`text-xs shrink-0 ${expiry.isExpired ? "text-red-600 dark:text-red-400 font-medium" : "text-muted-foreground"}`}
+                          >
+                            ({expiry.expiryText})
+                          </span>
                         </div>
                       )
-                    })()
+                    })
                   ) : !displayCommentFileKeys.length ? (
                     <div className="w-full border rounded-md bg-muted/30 p-4 text-center text-muted-foreground min-h-[52px] flex items-center justify-center text-sm">
                       첨부파일이 없습니다

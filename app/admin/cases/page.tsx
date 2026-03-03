@@ -40,6 +40,19 @@ const STUDY_SERIES_METADATA_KEYS: { label: string; keys: string[] }[] = [
   { label: "dimensions", keys: ["dimensions"] },
 ]
 
+/** metadata에서 StudyDate 값 추출 (정렬용) */
+function getStudyDateFromMetadata(metadata: S3UpdateRow["metadata"]): string {
+  if (metadata == null) return ""
+  const obj = typeof metadata === "string" ? (() => { try { return JSON.parse(metadata) } catch { return null } })() : metadata
+  if (!obj || typeof obj !== "object") return ""
+  const rec = obj as Record<string, unknown>
+  for (const k of ["Study Date", "StudyDate"]) {
+    const v = rec[k]
+    if (v != null && String(v).trim()) return String(v).trim()
+  }
+  return ""
+}
+
 /** s3_updates.metadata(JSON)를 리스트용 한 줄 문자열로 표시 (Study/Series 식별용 태그만) */
 function formatS3Metadata(metadata: S3UpdateRow["metadata"]): string {
   if (metadata == null) return ""
@@ -445,7 +458,15 @@ export default function WorklistPage() {
     }
 
     const taskIdsWithS3 = new Set(s3ByTaskId.keys())
-    for (const s3 of unassignedS3) {
+    const sortedUnassignedS3 = [...unassignedS3].sort((a, b) => {
+      const da = getStudyDateFromMetadata(a.metadata)
+      const db = getStudyDateFromMetadata(b.metadata)
+      if (!da && !db) return 0
+      if (!da) return 1
+      if (!db) return -1
+      return db.localeCompare(da)
+    })
+    for (const s3 of sortedUnassignedS3) {
       entries.push({ type: "s3", s3 })
     }
     for (const task of filteredInProgress) {

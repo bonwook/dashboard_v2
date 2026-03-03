@@ -1194,7 +1194,7 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
             {/* 생성일 */}
             <div className="flex items-center gap-1.5">
               <span className="text-muted-foreground">생성</span>
-              <span className="font-medium">{format(new Date(task.created_at), "yy.MM.dd", { locale: ko })}</span>
+              <span className="font-medium">{task.created_at ? format(new Date(task.created_at), "yy.MM.dd", { locale: ko }) : "-"}</span>
             </div>
             
             {/* 마감일 */}
@@ -3041,7 +3041,7 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
       `}</style>
 
       {/* 댓글 - 말풍선 스타일 */}
-      <div className="mb-6 rounded-xl border bg-muted/20 overflow-hidden flex flex-col" style={{ minHeight: "280px" }}>
+      <div className="mb-6 rounded-xl border bg-white dark:bg-muted/20 overflow-hidden flex flex-col" style={{ minHeight: "280px" }}>
         <div className="flex-1 max-h-[320px] overflow-y-auto p-4 space-y-4 custom-scrollbar">
           {comments.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-8">아직 댓글이 없습니다.</p>

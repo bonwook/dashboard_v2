@@ -191,18 +191,7 @@ async function handleSingleAssignment(
     return NextResponse.json({ error: "담당자를 찾을 수 없습니다" }, { status: 404 })
   }
 
-  let dueDateValue = due_date ? (due_date instanceof Date ? due_date.toISOString().split('T')[0] : due_date) : null
-  if (!dueDateValue && s3UpdateIds.length > 0) {
-    const firstId = s3UpdateIds[0]
-    const s3Row = await queryOne(
-      `SELECT upload_time, created_at FROM s3_updates WHERE id = ?`,
-      [firstId]
-    ) as { upload_time?: string | null; created_at?: string } | null
-    if (s3Row) {
-      const dateStr = s3Row.upload_time || s3Row.created_at
-      if (dateStr) dueDateValue = new Date(dateStr).toISOString().split("T")[0]
-    }
-  }
+  const dueDateValue = due_date ? (due_date instanceof Date ? due_date.toISOString().split('T')[0] : due_date) : null
 
   const taskId = crypto.randomUUID()
   const fileKeysArray = fileKeys && Array.isArray(fileKeys) ? fileKeys : []
@@ -277,16 +266,7 @@ async function handleSubtaskAssignment(
   const usersMap = new Map(users.map((u: any) => [u.id, u]))
 
   const taskId = crypto.randomUUID()
-  let dueDateValue = due_date ? (due_date instanceof Date ? due_date.toISOString().split('T')[0] : due_date) : null
-  if (!dueDateValue && s3UpdateIds.length > 0) {
-    const s3Row = await queryOne(
-      `SELECT upload_time, created_at FROM s3_updates WHERE id = ?`,
-      [s3UpdateIds[0]]
-    ) as { upload_time?: string | null; created_at?: string } | null
-    if (s3Row?.upload_time || s3Row?.created_at) {
-      dueDateValue = new Date((s3Row.upload_time || s3Row.created_at) as string).toISOString().split("T")[0]
-    }
-  }
+  const dueDateValue = due_date ? (due_date instanceof Date ? due_date.toISOString().split('T')[0] : due_date) : null
 
   const finalMainContent = mainContent || ''
   const insertParams = dueDateValue

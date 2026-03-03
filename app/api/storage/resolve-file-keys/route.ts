@@ -26,19 +26,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ resolvedKeys: [] })
     }
 
-    // staff/admin은 Datalist 등에서 타 사용자 파일도 열람해야 하므로 user_id 제한 없이 resolve 허용
-    const roleRows = await query(`SELECT role FROM profiles WHERE id = ?`, [decoded.id])
-    const role = roleRows && roleRows.length > 0 ? (roleRows[0] as any).role : null
-    const isStaff = role === "staff"
-
     // user_files 테이블에서 s3_key로 직접 조회 (같은 키로 재업로드된 경우 최신 행을 쓰기 위해 uploaded_at DESC)
+    // 태스크 첨부파일 메타데이터 조회이므로 user_id 제한 없이 조회 (실제 파일 접근은 signed-url/download 엔드포인트에서 제어)
     const placeholders = fileKeys.map(() => '?').join(',')
     const files = await query(
       `SELECT s3_key, file_name, user_id, uploaded_at
        FROM user_files
-       WHERE s3_key IN (${placeholders})${isStaff ? "" : " AND user_id = ?"}
+       WHERE s3_key IN (${placeholders})
        ORDER BY uploaded_at DESC`,
-      isStaff ? [...fileKeys] : [...fileKeys, decoded.id]
+      [...fileKeys]
     )
 
     // 같은 s3_key로 여러 행이 있으면(재업로드) 가장 최근 업로드(uploaded_at 최신) 사용

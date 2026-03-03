@@ -14,7 +14,7 @@ export function parseDateOnly(value: Date | string | null | undefined): Date | n
   const s = String(value).trim()
   if (!DATE_ONLY_REGEX.test(s)) return null
   const [y, m, d] = s.split("-").map(Number)
-  if (y < 1970 || m < 1 || m > 12 || d < 1 || d > 31) return null
+  if (y <= 1970 || m < 1 || m > 12 || d < 1 || d > 31) return null
   const date = new Date(y, m - 1, d)
   return date
 }
