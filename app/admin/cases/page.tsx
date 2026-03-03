@@ -556,7 +556,7 @@ export default function WorklistPage() {
   const handleStartEditS3Title = (s3: S3UpdateRow, e: React.MouseEvent) => {
     e.stopPropagation()
     setEditingS3Id(s3.id)
-    setEditingS3Title(s3.s3_key || s3.file_name || "")
+    setEditingS3Title(s3.file_name || "")
   }
 
   const handleCancelEditS3Title = (e: React.MouseEvent) => {
@@ -934,7 +934,7 @@ export default function WorklistPage() {
                                   ) : (
                                     <div className="group">
                                       <div className="flex items-start gap-1">
-                                        <div className="text-sm truncate" title={row.s3_key || row.file_name}>{row.s3_key || row.file_name}</div>
+                                        <div className="text-sm truncate" title={row.file_name || row.s3_key}>{row.file_name || row.s3_key}</div>
                                         {me?.role === "staff" && (
                                           <Button
                                             variant="ghost"
@@ -1107,7 +1107,7 @@ export default function WorklistPage() {
                                       <TableCell className="w-10 px-2" />
                                       <TableCell className="font-medium pl-8 align-middle py-1.5 text-sm text-muted-foreground min-w-0">
                                         <span className="font-mono text-emerald-600/80 mr-2 shrink-0" aria-hidden>└</span>
-                                        <span className="truncate inline-block max-w-full align-middle" title={row.s3_key || row.file_name}>{row.s3_key || row.file_name}</span>
+                                        <span className="truncate inline-block max-w-full align-middle" title={row.file_name || row.s3_key}>{row.file_name || row.s3_key}</span>
                                       </TableCell>
                                       <TableCell colSpan={6} className="py-1.5" />
                                       <TableCell className="w-[60px]" />
