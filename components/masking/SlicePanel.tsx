@@ -1,16 +1,21 @@
 "use client"
 
-import { useRef, useEffect, useCallback, useState } from "react"
+import { useRef, useEffect, useCallback, useState, forwardRef, useImperativeHandle } from "react"
+import type { MutableRefObject } from "react"
 import { cn } from "@/lib/utils"
 import { extractSlice, getSliceLayout, getSliceFrom3DMask } from "./niftiLoader"
 import type { NiftiHeaderLike, SliceAxis } from "./types"
 
 type Tool = "brush" | "eraser"
 
+export interface SlicePanelHandle {
+  redrawMask: () => void
+}
+
 export interface SlicePanelProps {
   header: NiftiHeaderLike
   imageBuffer: ArrayBuffer
-  mask3D: Uint8Array | null
+  mask3DRef: MutableRefObject<Uint8Array | null>
   axis: SliceAxis
   sliceIndex: number
   sliceRange: { min: number; max: number }
@@ -19,53 +24,60 @@ export interface SlicePanelProps {
   contrast: number
   tool: Tool
   brushSize: number
-  /** 이 패널에서 그리기/슬라이스 변경 가능 여부 */
   interactive: boolean
-  /** 포커스 시 테두리 */
   focused: boolean
   onFocus: () => void
   onSliceIndexChange: (delta: number) => void
   onMaskChange: (axis: SliceAxis, sliceIndex: number, mask: Uint8Array) => void
-  /** 툴바 확대/축소 배율 (1 = 100%) */
   scaleMultiplier?: number
-  /** AP/FH/RL 해부 방향 레이블 (상/하/좌/우) */
   axisLabels?: { top: string; bottom: string; left: string; right: string }
-  /** 십자선 위치 (픽셀, 없으면 미표시) */
   crosshair?: { x: number; y: number }
-  /** 슬라이스 표시 문구 (예: "13 of 24") */
   sliceLabel?: string
-  /** 4D 볼륨 시 phase 인덱스 */
   phaseIndex?: number
   className?: string
 }
 
-export function SlicePanel({
-  header,
-  imageBuffer,
-  mask3D,
-  axis,
-  sliceIndex,
-  sliceRange,
-  minMax,
-  brightness,
-  contrast,
-  tool,
-  brushSize,
-  interactive,
-  focused,
-  onFocus,
-  onSliceIndexChange,
-  onMaskChange,
-  scaleMultiplier = 1,
-  axisLabels,
-  crosshair,
-  sliceLabel,
-  phaseIndex = 0,
-  className,
-}: SlicePanelProps) {
+export const SlicePanel = forwardRef<SlicePanelHandle, SlicePanelProps>(function SlicePanel(
+  {
+    header,
+    imageBuffer,
+    mask3DRef,
+    axis,
+    sliceIndex,
+    sliceRange: _sliceRange,
+    minMax,
+    brightness,
+    contrast,
+    tool,
+    brushSize,
+    interactive,
+    focused,
+    onFocus,
+    onSliceIndexChange,
+    onMaskChange,
+    scaleMultiplier = 1,
+    axisLabels,
+    crosshair,
+    sliceLabel,
+    phaseIndex = 0,
+    className,
+  },
+  ref
+) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const overlayRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const brushPreviewRef = useRef<HTMLDivElement>(null)
+  const localMaskRef = useRef<Uint8Array | null>(null)
+
+  // drawing state을 ref로 관리 → 드로잉 중 React 리렌더 없음
+  const isDrawingRef = useRef(false)
+  const lastPointRef = useRef<{ x: number; y: number } | null>(null)
+  const panStartRef = useRef<{ x: number; y: number; panX: number; panY: number } | null>(null)
+
+  const [isPanning, setIsPanning] = useState(false)
+  const [pan, setPan] = useState({ x: 0, y: 0 })
+  const [scale, setScale] = useState(1)
 
   const layout = getSliceLayout(header)
   const dims =
@@ -75,28 +87,20 @@ export function SlicePanel({
         ? { width: layout.nx, height: layout.nz }
         : { width: layout.ny, height: layout.nz }
 
-  const [isDrawing, setIsDrawing] = useState(false)
-  const [lastPoint, setLastPoint] = useState<{ x: number; y: number } | null>(null)
-  const [isPanning, setIsPanning] = useState(false)
-  const panStartRef = useRef<{ x: number; y: number; panX: number; panY: number } | null>(null)
-  const [pan, setPan] = useState({ x: 0, y: 0 })
-  const [scale, setScale] = useState(1)
-  const localMaskRef = useRef<Uint8Array | null>(null)
-  const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null)
-
-  const drawSlice = useCallback(() => {
+  // 이미지 레이어만 그리기 (무거운 extractSlice 포함 - 슬라이스/밝기/대비 변경 시만 실행)
+  const drawImage = useCallback(() => {
     const canvas = canvasRef.current
     const overlay = overlayRef.current
     if (!canvas || !overlay) return
+    canvas.width = dims.width
+    canvas.height = dims.height
+    overlay.width = dims.width
+    overlay.height = dims.height
     const { data } = extractSlice(header, imageBuffer, axis, sliceIndex, {
       min: minMax.min,
       max: minMax.max,
       phaseIndex,
     })
-    canvas.width = dims.width
-    canvas.height = dims.height
-    overlay.width = dims.width
-    overlay.height = dims.height
     const ctx = canvas.getContext("2d")!
     const imgData = ctx.createImageData(dims.width, dims.height)
     const br = 1 + brightness / 100
@@ -115,10 +119,16 @@ export function SlicePanel({
       imgData.data[i + 3] = 255
     }
     ctx.putImageData(imgData, 0, 0)
+  }, [header, imageBuffer, axis, sliceIndex, dims.width, dims.height, minMax, brightness, contrast, phaseIndex])
+
+  // 마스크+십자선 오버레이만 그리기 (가벼운 연산 - 브러시질 중 이것만 호출)
+  const drawOverlay = useCallback(() => {
+    const overlay = overlayRef.current
+    if (!overlay) return
     const oCtx = overlay.getContext("2d")!
     oCtx.clearRect(0, 0, dims.width, dims.height)
-    const sliceMask = mask3D
-      ? getSliceFrom3DMask(mask3D, header, axis, sliceIndex)
+    const sliceMask = mask3DRef.current
+      ? getSliceFrom3DMask(mask3DRef.current, header, axis, sliceIndex)
       : localMaskRef.current
     if (sliceMask && sliceMask.length === dims.width * dims.height) {
       const oImg = oCtx.createImageData(dims.width, dims.height)
@@ -131,7 +141,13 @@ export function SlicePanel({
       }
       oCtx.putImageData(oImg, 0, 0)
     }
-    if (crosshair && crosshair.x >= 0 && crosshair.x <= dims.width && crosshair.y >= 0 && crosshair.y <= dims.height) {
+    if (
+      crosshair &&
+      crosshair.x >= 0 &&
+      crosshair.x <= dims.width &&
+      crosshair.y >= 0 &&
+      crosshair.y <= dims.height
+    ) {
       oCtx.setLineDash([4, 4])
       oCtx.strokeStyle = "rgba(59, 130, 246, 0.9)"
       oCtx.lineWidth = 1
@@ -143,71 +159,50 @@ export function SlicePanel({
       oCtx.stroke()
       oCtx.setLineDash([])
     }
-  }, [
-    header,
-    imageBuffer,
-    mask3D,
-    axis,
-    sliceIndex,
-    dims.width,
-    dims.height,
-    minMax,
-    brightness,
-    contrast,
-    crosshair,
-    axisLabels,
-    phaseIndex,
-  ])
+  }, [header, axis, sliceIndex, dims.width, dims.height, crosshair])
+  // mask3DRef는 안정적인 ref 객체이므로 deps 불필요
 
-  useEffect(() => {
-    drawSlice()
-  }, [drawSlice])
+  useEffect(() => { drawImage() }, [drawImage])
+  useEffect(() => { drawOverlay() }, [drawOverlay])
+
+  // 부모(MaskingCanvas)에서 마스크 갱신 후 직접 호출
+  useImperativeHandle(ref, () => ({ redrawMask: drawOverlay }), [drawOverlay])
 
   const canvasToSlice = useCallback(
     (clientX: number, clientY: number) => {
       const overlay = overlayRef.current
-      const container = containerRef.current
-      if (!overlay || !container) return null
-      
-      // 실제로 변형된 캔버스의 화면상 위치
+      if (!overlay) return null
       const overlayRect = overlay.getBoundingClientRect()
-      
-      // 캔버스 내부의 상대 좌표
       const relX = clientX - overlayRect.left
       const relY = clientY - overlayRect.top
-      
-      // 캔버스의 실제 픽셀 크기 대비 화면 크기 비율로 원본 좌표 계산
       const scaleX = dims.width / overlayRect.width
       const scaleY = dims.height / overlayRect.height
-      
       const x = Math.floor(relX * scaleX)
       const y = Math.floor(relY * scaleY)
-      
       if (x < 0 || x >= dims.width || y < 0 || y >= dims.height) return null
       return { x, y }
     },
     [dims.width, dims.height]
   )
 
-  const applyBrush = useCallback(
-    (px: number, py: number) => {
+  // 현재 2D 슬라이스 마스크 복사본 반환 (mousemove당 1번만 호출)
+  const getSliceMaskCopy = useCallback(() => {
+    const w = dims.width
+    const h = dims.height
+    const src = mask3DRef.current
+      ? getSliceFrom3DMask(mask3DRef.current, header, axis, sliceIndex)
+      : localMaskRef.current
+    if (!src || src.length !== w * h) return new Uint8Array(w * h)
+    return new Uint8Array(src)
+  }, [header, axis, sliceIndex, dims.width, dims.height])
+
+  // 2D 마스크 버퍼에 브러시 픽셀 적용 (onMaskChange 호출 없음)
+  const applyBrushToMask = useCallback(
+    (sliceMask: Uint8Array, px: number, py: number) => {
       const w = dims.width
       const h = dims.height
-      let sliceMask = mask3D ? getSliceFrom3DMask(mask3D, header, axis, sliceIndex) : localMaskRef.current
-      if (!sliceMask || sliceMask.length !== w * h) {
-        sliceMask = new Uint8Array(w * h)
-        localMaskRef.current = sliceMask
-      } else {
-        sliceMask = new Uint8Array(sliceMask)
-      }
-      
       const value = tool === "brush" ? 255 : 0
-      
-      // 브러시 크기가 이미지 픽셀 단위로 정확히 적용됨
-      // brushSize=1 → 1x1 픽셀, brushSize=5 → 5x5 픽셀
       const halfSize = Math.floor(brushSize / 2)
-      
-      // 사각형 브러시: 정확히 brushSize x brushSize 픽셀 영역을 칠함
       for (let dy = -halfSize; dy < brushSize - halfSize; dy++) {
         for (let dx = -halfSize; dx < brushSize - halfSize; dx++) {
           const nx = px + dx
@@ -217,28 +212,47 @@ export function SlicePanel({
           }
         }
       }
-      onMaskChange(axis, sliceIndex, sliceMask)
-      if (!mask3D) drawSlice()
     },
-    [
-      dims.width,
-      dims.height,
-      mask3D,
-      header,
-      axis,
-      sliceIndex,
-      tool,
-      brushSize,
-      onMaskChange,
-      drawSlice,
-    ]
+    [dims.width, dims.height, tool, brushSize]
+  )
+
+  // 브러시 커서 미리보기: React state 대신 DOM 직접 조작 → 리렌더 없음
+  const updateBrushPreview = useCallback(
+    (p: { x: number; y: number } | null) => {
+      const preview = brushPreviewRef.current
+      const overlay = overlayRef.current
+      const container = containerRef.current
+      if (!preview || !overlay || !container || !interactive) {
+        if (preview) preview.style.display = "none"
+        return
+      }
+      if (!p) {
+        preview.style.display = "none"
+        return
+      }
+      const overlayRect = overlay.getBoundingClientRect()
+      const containerRect = container.getBoundingClientRect()
+      const pixelToScreenRatio = overlayRect.width / dims.width
+      const brushScreenSize = brushSize * pixelToScreenRatio
+      const screenX = p.x * pixelToScreenRatio + overlayRect.left - containerRect.left
+      const screenY = p.y * pixelToScreenRatio + overlayRect.top - containerRect.top
+      preview.style.display = "block"
+      preview.style.left = `${screenX - brushScreenSize / 2}px`
+      preview.style.top = `${screenY - brushScreenSize / 2}px`
+      preview.style.width = `${brushScreenSize}px`
+      preview.style.height = `${brushScreenSize}px`
+      preview.style.borderColor =
+        tool === "brush" ? "rgba(255, 0, 0, 0.9)" : "rgba(0, 150, 255, 0.9)"
+      preview.style.backgroundColor =
+        tool === "brush" ? "rgba(255, 0, 0, 0.15)" : "rgba(0, 150, 255, 0.15)"
+    },
+    [dims.width, brushSize, tool, interactive]
   )
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
       if (!interactive) return
-      const isRightOrAux = e.button === 2 || e.button === 1
-      if (isRightOrAux) {
+      if (e.button === 2 || e.button === 1) {
         setIsPanning(true)
         panStartRef.current = { x: e.clientX, y: e.clientY, panX: pan.x, panY: pan.y }
         e.currentTarget.setPointerCapture(e.pointerId)
@@ -249,19 +263,21 @@ export function SlicePanel({
       onFocus()
       const p = canvasToSlice(e.clientX, e.clientY)
       if (p) {
-        setIsDrawing(true)
-        setLastPoint(p)
-        applyBrush(p.x, p.y)
+        isDrawingRef.current = true
+        lastPointRef.current = p
+        const sliceMask = getSliceMaskCopy()
+        applyBrushToMask(sliceMask, p.x, p.y)
+        onMaskChange(axis, sliceIndex, sliceMask)
       }
     },
-    [interactive, onFocus, pan.x, pan.y, canvasToSlice, applyBrush]
+    [interactive, onFocus, pan.x, pan.y, canvasToSlice, getSliceMaskCopy, applyBrushToMask, onMaskChange, axis, sliceIndex]
   )
 
   const handlePointerMove = useCallback(
     (e: React.PointerEvent) => {
       const p = canvasToSlice(e.clientX, e.clientY)
-      setMousePos(p)
-      
+      updateBrushPreview(p)
+
       if (isPanning && panStartRef.current) {
         setPan({
           x: panStartRef.current.panX + e.clientX - panStartRef.current.x,
@@ -269,20 +285,24 @@ export function SlicePanel({
         })
         return
       }
-      if (!isDrawing) return
-      if (p && lastPoint) {
-        const dx = Math.abs(p.x - lastPoint.x)
-        const dy = Math.abs(p.y - lastPoint.y)
-        const steps = Math.max(dx, dy, 1)
-        for (let t = 0; t <= steps; t++) {
-          const x = Math.round(lastPoint.x + (p.x - lastPoint.x) * (t / steps))
-          const y = Math.round(lastPoint.y + (p.y - lastPoint.y) * (t / steps))
-          applyBrush(x, y)
-        }
-        setLastPoint(p)
+
+      if (!isDrawingRef.current || !p || !lastPointRef.current) return
+
+      // 슬라이스 마스크를 한 번만 꺼내서 모든 인터폴레이션 포인트에 적용 후 onMaskChange 1회 호출
+      const sliceMask = getSliceMaskCopy()
+      const lp = lastPointRef.current
+      const dx = Math.abs(p.x - lp.x)
+      const dy = Math.abs(p.y - lp.y)
+      const steps = Math.max(dx, dy, 1)
+      for (let t = 0; t <= steps; t++) {
+        const x = Math.round(lp.x + (p.x - lp.x) * (t / steps))
+        const y = Math.round(lp.y + (p.y - lp.y) * (t / steps))
+        applyBrushToMask(sliceMask, x, y)
       }
+      lastPointRef.current = p
+      onMaskChange(axis, sliceIndex, sliceMask)
     },
-    [isPanning, isDrawing, lastPoint, canvasToSlice, applyBrush, scale, scaleMultiplier, brushSize]
+    [canvasToSlice, updateBrushPreview, isPanning, getSliceMaskCopy, applyBrushToMask, onMaskChange, axis, sliceIndex]
   )
 
   const handlePointerUp = useCallback((e?: React.PointerEvent) => {
@@ -293,14 +313,14 @@ export function SlicePanel({
         // ignore
       }
     }
-    setIsDrawing(false)
-    setLastPoint(null)
+    isDrawingRef.current = false
+    lastPointRef.current = null
     setIsPanning(false)
     panStartRef.current = null
   }, [])
-  
+
   const handlePointerLeave = useCallback(() => {
-    setMousePos(null)
+    if (brushPreviewRef.current) brushPreviewRef.current.style.display = "none"
     handlePointerUp()
   }, [handlePointerUp])
 
@@ -311,8 +331,7 @@ export function SlicePanel({
       if (e.ctrlKey || e.metaKey) {
         setScale((s) => Math.max(0.25, Math.min(10, s + (e.deltaY > 0 ? -0.1 : 0.1))))
       } else {
-        const delta = e.deltaY > 0 ? 1 : -1
-        onSliceIndexChange(delta)
+        onSliceIndexChange(e.deltaY > 0 ? 1 : -1)
       }
     },
     [interactive, onSliceIndexChange]
@@ -330,7 +349,7 @@ export function SlicePanel({
       <div
         ref={containerRef}
         className={cn(
-          "relative flex flex-1 min-h-0 overflow-auto rounded border bg-black flex items-center justify-center",
+          "relative flex flex-1 min-h-0 overflow-auto rounded border bg-black items-center justify-center",
           focused && "ring-2 ring-primary"
         )}
         style={{ cursor: interactive ? (isPanning ? "grabbing" : "crosshair") : "default" }}
@@ -369,65 +388,41 @@ export function SlicePanel({
             aria-hidden
           />
         </div>
-        
-        {/* 브러시 미리보기 (transform 외부에 표시) */}
-        {mousePos && interactive && !isPanning && overlayRef.current && (
-          (() => {
-            const overlayRect = overlayRef.current.getBoundingClientRect()
-            const containerRect = containerRef.current?.getBoundingClientRect()
-            if (!containerRect) return null
-            
-            const pixelToScreenRatio = overlayRect.width / dims.width
-            const brushScreenSize = brushSize * pixelToScreenRatio
-            
-            // 픽셀 좌표를 화면 좌표로 변환
-            const screenX = mousePos.x * pixelToScreenRatio + overlayRect.left - containerRect.left
-            const screenY = mousePos.y * pixelToScreenRatio + overlayRect.top - containerRect.top
-            
-            return (
-              <div
-                style={{
-                  position: "absolute",
-                  left: screenX - brushScreenSize / 2,
-                  top: screenY - brushScreenSize / 2,
-                  width: brushScreenSize,
-                  height: brushScreenSize,
-                  border: `2px solid ${tool === "brush" ? "rgba(255, 0, 0, 0.9)" : "rgba(0, 150, 255, 0.9)"}`,
-                  backgroundColor: tool === "brush" ? "rgba(255, 0, 0, 0.15)" : "rgba(0, 150, 255, 0.15)",
-                  pointerEvents: "none",
-                  zIndex: 15,
-                  boxSizing: "border-box",
-                }}
-              />
-            )
-          })()
-        )}
-        
-        {/* 격자 레이블 (transform 외부에서 고정 위치로 표시) */}
+
+        {/* 브러시 미리보기: 항상 DOM에 존재, display 속성으로 가시성 제어 (React state 미사용) */}
+        <div
+          ref={brushPreviewRef}
+          style={{
+            display: "none",
+            position: "absolute",
+            border: "2px solid rgba(255, 0, 0, 0.9)",
+            backgroundColor: "rgba(255, 0, 0, 0.15)",
+            pointerEvents: "none",
+            zIndex: 15,
+            boxSizing: "border-box",
+          }}
+        />
+
         {axisLabels && (
           <>
-            {/* 상단 */}
             <div
               className="absolute top-2 left-1/2 -translate-x-1/2 text-white font-bold text-sm bg-black/60 px-2 py-0.5 rounded pointer-events-none"
               style={{ zIndex: 20 }}
             >
               {axisLabels.top}
             </div>
-            {/* 하단 */}
             <div
               className="absolute bottom-2 left-1/2 -translate-x-1/2 text-white font-bold text-sm bg-black/60 px-2 py-0.5 rounded pointer-events-none"
               style={{ zIndex: 20 }}
             >
               {axisLabels.bottom}
             </div>
-            {/* 좌측 */}
             <div
               className="absolute left-2 top-1/2 -translate-y-1/2 text-white font-bold text-sm bg-black/60 px-2 py-0.5 rounded pointer-events-none"
               style={{ zIndex: 20 }}
             >
               {axisLabels.left}
             </div>
-            {/* 우측 */}
             <div
               className="absolute right-2 top-1/2 -translate-y-1/2 text-white font-bold text-sm bg-black/60 px-2 py-0.5 rounded pointer-events-none"
               style={{ zIndex: 20 }}
@@ -442,4 +437,4 @@ export function SlicePanel({
       )}
     </div>
   )
-}
+})

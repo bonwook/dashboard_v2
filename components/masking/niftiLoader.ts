@@ -342,33 +342,38 @@ export function buildMaskNiftiBlob(
   mask3D: Uint8Array,
   options?: BuildNiftiOptions
 ): Blob {
-  const { compressOutput = true, phaseIndex = 0 } = options ?? {}
+  const { compressOutput = true } = options ?? {}
   const layout = getSliceLayout(header)
   const offset = header.vox_offset
-  const n = layout.totalVoxels
+  const n = layout.totalVoxels // 3D 볼륨 크기 (nx * ny * nz)
   
-  // 마스크 파일은 Uint8 (1 byte per voxel)로 저장
-  const maskImageSize = n
-  const out = new ArrayBuffer(offset + maskImageSize)
+  // 1. 충분한 공간 확보 (헤더 + 3D 데이터)
+  const out = new ArrayBuffer(offset + n)
   const outView = new Uint8Array(out)
   
-  // 헤더 복사
+  // 2. 헤더 복사
   outView.set(new Uint8Array(rawData, 0, offset), 0)
   
-  // 헤더의 datatype을 UINT8(2)로 수정
   const headerView = new DataView(out)
-  headerView.setInt16(70, 2, true) // datatype = DT_UINT8
-  headerView.setInt16(72, 8, true) // bitpix = 8
+  const isLittleEndian = header.littleEndian ?? true
+
+  // 3. [중요] 헤더 정보를 3D 마스크 규격에 맞게 수정
+  headerView.setInt16(40, 3, isLittleEndian);      // dim[0] = 3 (3차원으로 변경)
+  headerView.setInt16(48, 1, isLittleEndian);      // dim[4] = 1 (Time/Phase 축 제거)
   
-  // 마스크 데이터 쓰기 (0 또는 255)
-  const maskData = new Uint8Array(out, offset, maskImageSize)
-  for (let i = 0; i < n; i++) {
-    maskData[i] = mask3D[i] > 0 ? 255 : 0
-  }
+  // 4. 데이터 타입 수정 (Uint8)
+  headerView.setInt16(70, 2, isLittleEndian);      // datatype = DT_UINT8 (2)
+  headerView.setInt16(72, 8, isLittleEndian);      // bitpix = 8 bits
   
+  // 5. 마스크 데이터 쓰기
+  const maskFileData = new Uint8Array(out, offset, n)
+  // mask3D 자체가 이미 [nx * ny * nz] 크기이므로 그대로 복사
+  maskFileData.set(mask3D.slice(0, n))
+
+  // 6. 압축 및 반환
   if (compressOutput) {
     const compressed = gzipSync(new Uint8Array(out))
-    return new Blob([compressed as BlobPart], { type: "application/octet-stream" })
+    return new Blob([compressed.buffer as ArrayBuffer], { type: "application/octet-stream" })
   }
-  return new Blob([out], { type: "application/octet-stream" })
+  return new Blob([out as ArrayBuffer], { type: "application/octet-stream" })
 }

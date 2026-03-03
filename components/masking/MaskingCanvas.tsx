@@ -1,6 +1,7 @@
 "use client"
 
-import { useEffect, useCallback, useState } from "react"
+import { useRef, useEffect, useCallback, useState, forwardRef, useImperativeHandle } from "react"
+import type { MutableRefObject } from "react"
 import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
 import { Label } from "@/components/ui/label"
@@ -9,13 +10,18 @@ import { cn } from "@/lib/utils"
 import { getSliceLayout, getSliceRange, getVolumeMinMax } from "./niftiLoader"
 import type { NiftiHeaderLike, SliceAxis } from "./types"
 import { SlicePanel } from "./SlicePanel"
+import type { SlicePanelHandle } from "./SlicePanel"
 
 type Tool = "brush" | "eraser"
+
+export interface MaskingCanvasHandle {
+  redrawMasks: () => void
+}
 
 interface MaskingCanvasProps {
   header: NiftiHeaderLike | null
   imageBuffer: ArrayBuffer | null
-  mask3D: Uint8Array | null
+  mask3DRef: MutableRefObject<Uint8Array | null>
   onMaskChange: (axis: SliceAxis, sliceIndex: number, mask: Uint8Array) => void
   onCompleteRequest: () => void
   onDownloadRequest: (phaseIndex?: number) => void
@@ -31,15 +37,18 @@ const AXIS_LABELS: Record<SliceAxis, { top: string; bottom: string; left: string
   coronal: { top: "A", bottom: "P", left: "R", right: "L" },
 }
 
-export function MaskingCanvas({
-  header,
-  imageBuffer,
-  mask3D,
-  onMaskChange,
-  onCompleteRequest,
-  onDownloadRequest,
-  className,
-}: MaskingCanvasProps) {
+export const MaskingCanvas = forwardRef<MaskingCanvasHandle, MaskingCanvasProps>(function MaskingCanvas(
+  {
+    header,
+    imageBuffer,
+    mask3DRef,
+    onMaskChange,
+    onCompleteRequest,
+    onDownloadRequest,
+    className,
+  },
+  ref
+) {
   const [axialIndex, setAxialIndex] = useState(0)
   const [sagittalIndex, setSagittalIndex] = useState(0)
   const [coronalIndex, setCoronalIndex] = useState(0)
@@ -53,6 +62,22 @@ export function MaskingCanvas({
   const [globalZoom, setGlobalZoom] = useState(1)
   const [phaseIndex, setPhaseIndex] = useState(0)
   const [minMax, setMinMax] = useState<{ min: number; max: number }>({ min: 0, max: 255 })
+
+  // 4개 패널에 대한 ref - 마스크 변경 시 직접 redrawMask() 호출
+  const panel0Ref = useRef<SlicePanelHandle | null>(null)
+  const panel1Ref = useRef<SlicePanelHandle | null>(null)
+  const panel2Ref = useRef<SlicePanelHandle | null>(null)
+  const panel3Ref = useRef<SlicePanelHandle | null>(null)
+
+  // 부모(page.tsx)에서 handleMaskChange 후 모든 패널 오버레이 갱신
+  useImperativeHandle(ref, () => ({
+    redrawMasks: () => {
+      panel0Ref.current?.redrawMask()
+      panel1Ref.current?.redrawMask()
+      panel2Ref.current?.redrawMask()
+      panel3Ref.current?.redrawMask()
+    },
+  }))
 
   const layout = header ? getSliceLayout(header) : null
   const nPhase = layout?.nPhase ?? 1
@@ -88,13 +113,10 @@ export function MaskingCanvas({
     if (phaseIndex >= nPhase) setPhaseIndex(Math.max(0, nPhase - 1))
   }, [nPhase, phaseIndex])
 
-  const handleFocusPanel = useCallback(
-    (panel: PanelIndex) => {
-      setFocusedPanel(panel)
-      if (panel <= 2) setActiveAxis(AXES[panel])
-    },
-    []
-  )
+  const handleFocusPanel = useCallback((panel: PanelIndex) => {
+    setFocusedPanel(panel)
+    if (panel <= 2) setActiveAxis(AXES[panel])
+  }, [])
 
   const handleSliceDelta = useCallback(
     (panel: PanelIndex, delta: number) => {
@@ -137,7 +159,7 @@ export function MaskingCanvas({
 
   return (
     <div className={cn("flex flex-1 flex-col gap-1", className)}>
-      {/* 툴바: 더 컴팩트하게 */}
+      {/* 툴바 */}
       <div className="flex flex-wrap items-center gap-3 px-1 py-0.5">
         <div className="flex rounded-md border p-0.5">
           <Button
@@ -252,15 +274,16 @@ export function MaskingCanvas({
         </div>
       </div>
 
-      {/* ITK-SNAP 스타일 4분할 뷰 (2x2), AP/FH/RL 방향 레이블 + 십자선 */}
+      {/* ITK-SNAP 스타일 4분할 뷰 */}
       <div className="grid grid-cols-2 grid-rows-2 gap-1 flex-1 min-h-0">
         <div className="flex flex-col min-h-0">
           <span className="text-xs font-medium text-muted-foreground px-2 py-1 bg-muted/30">Axial</span>
           <SlicePanel
+            ref={panel0Ref}
             key={`axial-${header.dims[0]}-${header.dims[1]}-${header.dims[2]}`}
             header={header}
             imageBuffer={imageBuffer}
-            mask3D={mask3D}
+            mask3DRef={mask3DRef}
             axis="axial"
             sliceIndex={axialIndex}
             sliceRange={sliceRange("axial")}
@@ -285,10 +308,11 @@ export function MaskingCanvas({
         <div className="flex flex-col min-h-0">
           <span className="text-xs font-medium text-muted-foreground px-2 py-1 bg-muted/30">Sagittal</span>
           <SlicePanel
+            ref={panel1Ref}
             key={`sagittal-${header.dims[0]}-${header.dims[1]}-${header.dims[2]}`}
             header={header}
             imageBuffer={imageBuffer}
-            mask3D={mask3D}
+            mask3DRef={mask3DRef}
             axis="sagittal"
             sliceIndex={sagittalIndex}
             sliceRange={sliceRange("sagittal")}
@@ -313,10 +337,11 @@ export function MaskingCanvas({
         <div className="flex flex-col min-h-0">
           <span className="text-xs font-medium text-muted-foreground px-2 py-1 bg-muted/30">Coronal</span>
           <SlicePanel
+            ref={panel2Ref}
             key={`coronal-${header.dims[0]}-${header.dims[1]}-${header.dims[2]}`}
             header={header}
             imageBuffer={imageBuffer}
-            mask3D={mask3D}
+            mask3DRef={mask3DRef}
             axis="coronal"
             sliceIndex={coronalIndex}
             sliceRange={sliceRange("coronal")}
@@ -343,10 +368,11 @@ export function MaskingCanvas({
             {activeAxis === "axial" ? "Axial" : activeAxis === "sagittal" ? "Sagittal" : "Coronal"} (활성)
           </span>
           <SlicePanel
+            ref={panel3Ref}
             key={`active-${activeAxis}-${header.dims[0]}-${header.dims[1]}-${header.dims[2]}`}
             header={header}
             imageBuffer={imageBuffer}
-            mask3D={mask3D}
+            mask3DRef={mask3DRef}
             axis={activeAxis}
             sliceIndex={getSliceIndex(activeAxis)}
             sliceRange={sliceRange(activeAxis)}
@@ -377,4 +403,4 @@ export function MaskingCanvas({
       </div>
     </div>
   )
-}
+})

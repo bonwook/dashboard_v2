@@ -33,7 +33,7 @@ export interface Slice2D {
   /** RGBA 픽셀 (canvas용) */
   data: Uint8ClampedArray
   /** 현재 슬라이스 인덱스 */
-  sliceIndex: number
+  sliceIndex: number 
   axis: SliceAxis
 }
 

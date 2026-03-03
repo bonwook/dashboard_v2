@@ -1,8 +1,9 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useRef } from "react"
 import { useToast } from "@/hooks/use-toast"
 import { NiiFileList, MaskingCanvas } from "@/components/masking"
+import type { MaskingCanvasHandle } from "@/components/masking/MaskingCanvas"
 import {
   parseNifti,
   getSliceLayout,
@@ -28,13 +29,15 @@ export default function ClientMaskingPage() {
   const [header, setHeader] = useState<NiftiHeaderLike | null>(null)
   const [imageBuffer, setImageBuffer] = useState<ArrayBuffer | null>(null)
   const [rawData, setRawData] = useState<ArrayBuffer | null>(null)
-  const [mask3D, setMask3D] = useState<Uint8Array | null>(null)
-  /** 원본이 .nii.gz였는지 (다운로드 기본값에 사용) */
   const [wasGzipped, setWasGzipped] = useState(false)
-  /** 다운로드 시 .nii.gz로 압축할지 (기본: 원본이 gz면 true) */
   const [downloadAsGzip, setDownloadAsGzip] = useState(true)
   const [loading, setLoading] = useState(false)
   const { toast } = useToast()
+
+  // mask3D를 ref로 관리: 변경해도 React 리렌더 없음 → 브러시질 중 리렌더 0회
+  const mask3DRef = useRef<Uint8Array | null>(null)
+  // MaskingCanvas의 redrawMasks()를 직접 호출하기 위한 ref
+  const maskingCanvasRef = useRef<MaskingCanvasHandle | null>(null)
 
   const loadFile = useCallback(
     async (file: File | string, options?: { existingId?: string }) => {
@@ -53,11 +56,11 @@ export default function ClientMaskingPage() {
           data = await res.arrayBuffer()
           name = file.split("/").pop() ?? "file.nii"
         }
-        
+
         const { header: h, imageBuffer: img, data: raw, wasGzipped: gz } = await parseNifti(data)
         const layout = getSliceLayout(h)
         const totalVoxels = layout.totalVoxels
-        
+
         const existingId = options?.existingId
         let mask: Uint8Array
         if (existingId != null) {
@@ -70,10 +73,12 @@ export default function ClientMaskingPage() {
         } else {
           mask = new Uint8Array(totalVoxels)
         }
+
+        // 상태 업데이트 전에 ref에 먼저 할당 → SlicePanel 리렌더 시 이미 새 마스크 참조
+        mask3DRef.current = mask
         setHeader(h)
         setImageBuffer(img)
         setRawData(raw)
-        setMask3D(mask)
         setWasGzipped(gz)
         setDownloadAsGzip(gz)
         if (existingId != null) {
@@ -101,7 +106,7 @@ export default function ClientMaskingPage() {
         setLoading(false)
       }
     },
-    [toast, header, imageBuffer, selectedId]
+    [toast]
   )
 
   const handleSelect = useCallback(
@@ -122,7 +127,7 @@ export default function ClientMaskingPage() {
         setHeader(null)
         setImageBuffer(null)
         setRawData(null)
-        setMask3D(null)
+        mask3DRef.current = null
       }
     },
     [selectedId]
@@ -131,45 +136,40 @@ export default function ClientMaskingPage() {
   const selectedFile = files.find((f) => f.id === selectedId)
 
   const handleMaskChange = useCallback(
-    (axis: "axial" | "coronal" | "sagittal", sliceIndex: number, mask: Uint8Array) => {
-      if (!header) return
-      const layout = getSliceLayout(header)
-      const totalVoxels = layout.totalVoxels
-      const nextMask =
-        mask3D && mask3D.length === totalVoxels
-          ? new Uint8Array(mask3D)
-          : new Uint8Array(totalVoxels)
-      setSliceIn3DMask(nextMask, header, axis, sliceIndex, mask)
-      setMask3D(nextMask)
-      if (selectedId) maskCache.set(selectedId, nextMask)
+    (axis: "axial" | "coronal" | "sagittal", sliceIndex: number, sliceMask: Uint8Array) => {
+      if (!header || !mask3DRef.current) return
+      // new Uint8Array 복사 없이 3D 마스크에 직접 뮤테이션
+      setSliceIn3DMask(mask3DRef.current, header, axis, sliceIndex, sliceMask)
+      if (selectedId) maskCache.set(selectedId, mask3DRef.current)
+      // React 리렌더 없이 4개 패널 오버레이만 직접 갱신
+      maskingCanvasRef.current?.redrawMasks()
     },
-    [header, mask3D, selectedId]
+    [header, selectedId]
   )
 
   const handleCompleteRequest = useCallback(() => {
     if (!selectedId) return
-    if (mask3D) maskCache.set(selectedId, mask3D)
+    if (mask3DRef.current) maskCache.set(selectedId, mask3DRef.current)
     setFiles((prev) =>
       prev.map((f) => (f.id === selectedId ? { ...f, completed: true } : f))
     )
     toast({ title: "완료", description: "파일 블록이 완료 처리되었습니다." })
-  }, [selectedId, mask3D, toast])
+  }, [selectedId, toast])
 
   const handleDownloadRequest = useCallback(
     (phaseIndex?: number) => {
-      if (!rawData || !header || !mask3D) {
+      if (!rawData || !header || !mask3DRef.current) {
         toast({ title: "다운로드 불가", description: "파일을 먼저 로드해 주세요.", variant: "destructive" })
         return
       }
-      
-      // 마스크 통계 계산
+
+      const mask3D = mask3DRef.current
       const totalVoxels = mask3D.length
       const maskedVoxels = mask3D.filter(v => v > 0).length
       const maskedPercentage = ((maskedVoxels / totalVoxels) * 100).toFixed(2)
-      
+
       console.log(`마스크 다운로드 - 총 복셀: ${totalVoxels}, 마스킹된 복셀: ${maskedVoxels} (${maskedPercentage}%)`)
-      
-      // 마스크 전용 파일 생성 (0과 255만 포함)
+
       const blob = buildMaskNiftiBlob(rawData, header, mask3D, {
         compressOutput: downloadAsGzip,
         phaseIndex: phaseIndex ?? 0,
@@ -183,18 +183,18 @@ export default function ClientMaskingPage() {
       a.download = base + ext
       a.click()
       URL.revokeObjectURL(url)
-      toast({ 
-        title: "마스크 다운로드", 
-        description: `마스크 파일 저장 완료 (${maskedVoxels}개 복셀, ${maskedPercentage}%)` 
+      toast({
+        title: "마스크 다운로드",
+        description: `마스크 파일 저장 완료 (${maskedVoxels}개 복셀, ${maskedPercentage}%)`,
       })
     },
-    [rawData, header, mask3D, downloadAsGzip, selectedFile?.name, toast]
+    [rawData, header, downloadAsGzip, selectedFile?.name, toast]
   )
 
   return (
     <div className="flex h-[calc(100vh-3rem)] flex-col">
       <div className="flex flex-1 overflow-hidden">
-        {/* 좌측: .nii / .nii.gz 파일 리스트 (File Explorer 형태) */}
+        {/* 좌측: .nii / .nii.gz 파일 리스트 */}
         <aside className="flex w-56 shrink-0 flex-col border-r bg-card">
           <div className="flex items-center justify-between border-b p-3">
             <span className="text-sm font-medium">.nii / .nii.gz</span>
@@ -244,9 +244,10 @@ export default function ClientMaskingPage() {
             </Label>
           </div>
           <MaskingCanvas
+            ref={maskingCanvasRef}
             header={header}
             imageBuffer={imageBuffer}
-            mask3D={mask3D}
+            mask3DRef={mask3DRef}
             onMaskChange={handleMaskChange}
             onCompleteRequest={handleCompleteRequest}
             onDownloadRequest={handleDownloadRequest}
