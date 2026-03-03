@@ -1,8 +1,6 @@
 -- Flonics Dashboard - Complete Database Schema
--- This is the consolidated schema file containing all required tables
 -- Compatible with AWS Aurora MySQL
 
--- Use database
 USE flonics_dashboard;
 
 -- ============================================
@@ -250,6 +248,7 @@ CREATE TABLE IF NOT EXISTS task_status_history (
 CREATE TABLE IF NOT EXISTS s3_updates (
   id INT AUTO_INCREMENT PRIMARY KEY,
   file_name VARCHAR(255) NOT NULL,
+  s3_key VARCHAR(500) DEFAULT NULL COMMENT 'Actual S3 object key for download',
   bucket_name VARCHAR(100),
   file_size BIGINT,
   metadata JSON NULL COMMENT 'DICOM/NIfTI 비PII 태그 등',
@@ -259,5 +258,54 @@ CREATE TABLE IF NOT EXISTS s3_updates (
   note TEXT DEFAULT NULL COMMENT 'Admin memo for quick reference',
   FOREIGN KEY (task_id) REFERENCES task_assignments(id) ON DELETE SET NULL,
   INDEX idx_task_id (task_id),
-  INDEX idx_created_at (created_at)
+  INDEX idx_created_at (created_at),
+  INDEX idx_s3_key (s3_key)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================
+-- 11. SPREADSHEET FOLDERS TABLE
+-- ============================================
+CREATE TABLE IF NOT EXISTS spreadsheet_folders (
+  id CHAR(36) PRIMARY KEY,
+  parent_id CHAR(36) DEFAULT NULL COMMENT 'NULL = root level',
+  name VARCHAR(255) NOT NULL,
+  created_by CHAR(36) NOT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (parent_id) REFERENCES spreadsheet_folders(id) ON DELETE CASCADE,
+  FOREIGN KEY (created_by) REFERENCES profiles(id) ON DELETE RESTRICT,
+  INDEX idx_parent_id (parent_id),
+  INDEX idx_created_by (created_by)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================
+-- 12. SPREADSHEET FILES TABLE
+-- ============================================
+CREATE TABLE IF NOT EXISTS spreadsheet_files (
+  id CHAR(36) PRIMARY KEY,
+  folder_id CHAR(36) DEFAULT NULL COMMENT 'NULL = root level',
+  name VARCHAR(255) NOT NULL,
+  headers JSON DEFAULT NULL COMMENT 'Column headers as JSON array',
+  created_by CHAR(36) NOT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (folder_id) REFERENCES spreadsheet_folders(id) ON DELETE SET NULL,
+  FOREIGN KEY (created_by) REFERENCES profiles(id) ON DELETE RESTRICT,
+  INDEX idx_folder_id (folder_id),
+  INDEX idx_created_by (created_by)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================
+-- 13. SPREADSHEET ROWS TABLE
+-- ============================================
+CREATE TABLE IF NOT EXISTS spreadsheet_rows (
+  id CHAR(36) PRIMARY KEY,
+  file_id CHAR(36) NOT NULL,
+  row_index INT NOT NULL,
+  row_data JSON NOT NULL COMMENT 'Row data as JSON object keyed by column header',
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (file_id) REFERENCES spreadsheet_files(id) ON DELETE CASCADE,
+  INDEX idx_file_id (file_id),
+  UNIQUE KEY uq_file_row (file_id, row_index)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

@@ -1,7 +1,7 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { LayoutDashboard, Activity, FileText, LogOut, Box, Settings } from "lucide-react"
+import { LayoutDashboard, Activity, FileText, LogOut, Box, Settings, Table2 } from "lucide-react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import Image from "next/image"
@@ -85,6 +85,22 @@ export function AdminNav({ user }: AdminNavProps) {
               <Link href="/admin/reports">
                 <FileText className="mr-2 h-4 w-4" />
                 Reports
+              </Link>
+            </Button>
+            <div className="h-6 w-px bg-border" />
+            <Button
+              variant={pathname.startsWith("/admin/spreadsheet") ? "default" : "ghost"}
+              asChild
+              size="sm"
+              className={
+                pathname.startsWith("/admin/spreadsheet")
+                  ? "bg-primary text-primary-foreground rounded-none"
+                  : "rounded-none"
+              }
+            >
+              <Link href="/admin/spreadsheet">
+                <Table2 className="mr-2 h-4 w-4" />
+                Sheets
               </Link>
             </Button>
             <div className="h-6 w-px bg-border" />

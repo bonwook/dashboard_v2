@@ -1490,7 +1490,7 @@ export default function ClientAnalyticsPage() {
                   }}
                     data-placeholder="본문을 입력하세요. 위의 아이콘을 사용하여 텍스트를 꾸밀 수 있습니다."
                   />
-                  <style jsx global>{`
+                  <style>{`
                     #assign-content:empty:before {
                       content: attr(data-placeholder);
                       color: #9ca3af;
@@ -1927,7 +1927,7 @@ export default function ClientAnalyticsPage() {
                                     Object.entries(previewData.metadata).map(([key, value]) => (
                                       <div key={key} className="flex items-start gap-2 border-b pb-2">
                                         <span className="font-medium text-muted-foreground min-w-[200px]">{key}:</span>
-                                        <span className="flex-1 break-words">{String(value)}</span>
+                                        <span className="flex-1 wrap-break-word">{String(value)}</span>
                                       </div>
                                     ))
                                   ) : (
@@ -1953,7 +1953,7 @@ export default function ClientAnalyticsPage() {
                                       return (
                                         <div key={key} className="flex items-start gap-2 border-b pb-2">
                                           <span className="font-medium text-muted-foreground min-w-[200px]">{key}:</span>
-                                          <span className="flex-1 break-words font-mono text-xs">{String(displayValue)}</span>
+                                          <span className="flex-1 wrap-break-word font-mono text-xs">{String(displayValue)}</span>
                                         </div>
                                       )
                                     })
