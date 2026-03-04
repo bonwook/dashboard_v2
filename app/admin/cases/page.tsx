@@ -846,13 +846,13 @@ export default function WorklistPage() {
                     <TableHeader>
                       <TableRow>
                         <TableHead className="w-10 shrink-0 px-2" />
-                        <TableHead className="w-[35%]">제목</TableHead>
-                        <TableHead className="w-[70px] shrink-0 text-center">할당</TableHead>
-                        <TableHead className="w-[13%]">요청자/버킷</TableHead>
-                        <TableHead className="w-[13%]">담당자</TableHead>
-                        <TableHead className="w-[140px] shrink-0 text-center">생성일 / 마감일</TableHead>
-                        <TableHead className="w-[180px] shrink-0 text-center">메모</TableHead>
-                        <TableHead className="w-[60px] shrink-0" />
+                        <TableHead className="w-[34%]">제목</TableHead>
+                        <TableHead className="w-[88px] shrink-0 text-center">할당</TableHead>
+                        <TableHead className="w-[10%]">요청자/버킷</TableHead>
+                        <TableHead className="w-[10%]">담당자</TableHead>
+                        <TableHead className="w-[116px] shrink-0 text-center">생성일 / 마감일</TableHead>
+                        <TableHead className="w-[196px] shrink-0 text-center">메모</TableHead>
+                        <TableHead className="w-[48px] shrink-0" />
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -960,12 +960,12 @@ export default function WorklistPage() {
                                 </TableCell>
                                 <TableCell className="min-w-0 truncate" title={getBucketName(row) || "-"}>{getBucketName(row) || "-"}</TableCell>
                                 <TableCell className="min-w-0 truncate">미지정</TableCell>
-                                <TableCell className="w-[140px] text-center">
+                                <TableCell className="w-[116px] text-center">
                                   <div className="text-sm text-muted-foreground">
                                     {formatDateOnly(row.upload_time || row.created_at)} / -
                                   </div>
                                 </TableCell>
-                                <TableCell className="w-[180px]" onClick={(e) => e.stopPropagation()}>
+                                <TableCell className="w-[196px]" onClick={(e) => e.stopPropagation()}>
                                   {editingS3NoteId === row.id ? (
                                     <div className="flex items-center justify-center gap-1">
                                       <Input
@@ -997,7 +997,7 @@ export default function WorklistPage() {
                                     </div>
                                   )}
                                 </TableCell>
-                                <TableCell className="w-[60px]" />
+                                <TableCell className="w-[48px]" />
                               </TableRow>
                               {isDetailOpen && (
                                 <TableRow className="bg-amber-500/5 border-l-4 border-l-amber-500/30">
@@ -1055,7 +1055,7 @@ export default function WorklistPage() {
                                     ? <Badge variant="secondary" className="font-normal text-xs">공동</Badge>
                                     : <span title={task.assigned_to_name || task.assigned_to_email || ""}>{task.assigned_to_name || task.assigned_to_email || "Unknown"}</span>}
                                 </TableCell>
-                                <TableCell className="w-[140px] text-center">
+                                <TableCell className="w-[116px] text-center">
                                   <div className={`text-sm ${expired ? "text-red-600 font-medium" : "text-muted-foreground"}`}>
                                     {formatDateOnly(task.created_at)} / {task.due_date ? (
                                       <>
@@ -1068,7 +1068,7 @@ export default function WorklistPage() {
                                     ) : "-"}
                                   </div>
                                 </TableCell>
-                                <TableCell className="w-[180px]" onClick={(e) => e.stopPropagation()}>
+                                <TableCell className="w-[196px]" onClick={(e) => e.stopPropagation()}>
                                   {editingTaskNoteId === task.id ? (
                                     <div className="flex items-center justify-center gap-1">
                                       <Input value={editingTaskNote} onChange={(e) => setEditingTaskNote(e.target.value)} className="h-7 text-sm" placeholder="메모..." autoFocus onKeyDown={(e) => { if (e.key === "Enter") handleSaveTaskNote(task.id, e as unknown as React.MouseEvent); if (e.key === "Escape") handleCancelEditTaskNote(e as unknown as React.MouseEvent); }} />
@@ -1082,7 +1082,7 @@ export default function WorklistPage() {
                                     </div>
                                   )}
                                 </TableCell>
-                                <TableCell className="w-[60px] text-right" onClick={(e) => e.stopPropagation()}>
+                                <TableCell className="w-[48px] text-right" onClick={(e) => e.stopPropagation()}>
                                   {(me?.id === task.assigned_by || me?.role === "staff") && (
                                     <Button
                                       variant="ghost"
@@ -1110,7 +1110,7 @@ export default function WorklistPage() {
                                         <span className="truncate inline-block max-w-full align-middle" title={row.file_name || row.s3_key}>{row.file_name || row.s3_key}</span>
                                       </TableCell>
                                       <TableCell colSpan={6} className="py-1.5" />
-                                      <TableCell className="w-[60px]" />
+                                      <TableCell className="w-[48px]" />
                                     </TableRow>
                                     {isSubDetailOpen && (
                                       <TableRow className="bg-emerald-500/5 border-l-4 border-l-emerald-500/20">
@@ -1146,7 +1146,7 @@ export default function WorklistPage() {
                                 ? <Badge variant="secondary" className="font-normal text-xs">공동</Badge>
                                 : <span title={task.assigned_to_name || task.assigned_to_email || ""}>{task.assigned_to_name || task.assigned_to_email || "Unknown"}</span>}
                             </TableCell>
-                            <TableCell className="w-[140px] text-center">
+                            <TableCell className="w-[116px] text-center">
                               <div className={`text-sm ${expired ? "text-red-600 font-medium" : "text-muted-foreground"}`}>
                                 {formatDateOnly(task.created_at)} / {task.due_date ? (
                                   <>
@@ -1159,7 +1159,7 @@ export default function WorklistPage() {
                                 ) : "-"}
                               </div>
                             </TableCell>
-                            <TableCell className="w-[180px]" onClick={(e) => e.stopPropagation()}>
+                            <TableCell className="w-[196px]" onClick={(e) => e.stopPropagation()}>
                               {editingTaskNoteId === task.id ? (
                                 <div className="flex items-center justify-center gap-1">
                                   <Input value={editingTaskNote} onChange={(e) => setEditingTaskNote(e.target.value)} className="h-7 text-sm" placeholder="메모..." autoFocus onKeyDown={(e) => { if (e.key === "Enter") handleSaveTaskNote(task.id, e as unknown as React.MouseEvent); if (e.key === "Escape") handleCancelEditTaskNote(e as unknown as React.MouseEvent); }} />
@@ -1173,7 +1173,7 @@ export default function WorklistPage() {
                                 </div>
                               )}
                             </TableCell>
-                            <TableCell className="w-[60px] text-right" onClick={(e) => e.stopPropagation()}>
+                            <TableCell className="w-[48px] text-right" onClick={(e) => e.stopPropagation()}>
                               {(me?.id === task.assigned_by || me?.role === "staff") && (
                                 <Button
                                   variant="ghost"
@@ -1219,13 +1219,13 @@ export default function WorklistPage() {
                                     ? <Badge variant="secondary" className="font-normal text-xs">공동</Badge>
                                     : (task.assigned_to_name || task.assigned_to_email || "Unknown")}
                                 </TableCell>
-                                <TableCell className="w-[140px] text-center">
+                                <TableCell className="w-[116px] text-center">
                                   <div className="text-sm text-muted-foreground">
                                     {formatDateOnly(task.created_at)} / {task.due_date ? formatDateOnly(task.due_date) : "-"}
                                   </div>
                                 </TableCell>
-                                <TableCell className="w-[180px] text-sm text-muted-foreground text-center truncate" title={task.note || ""}>{task.note || ""}</TableCell>
-                                <TableCell className="w-[60px]" />
+                                <TableCell className="w-[196px] text-sm text-muted-foreground text-center truncate" title={task.note || ""}>{task.note || ""}</TableCell>
+                                <TableCell className="w-[48px]" />
                               </TableRow>
                             )
                           })}
